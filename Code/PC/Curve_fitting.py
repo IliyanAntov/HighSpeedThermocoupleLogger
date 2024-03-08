@@ -9,37 +9,27 @@ f = open("./data/oscilloscope_data.json", "r")
 osc_data = json.load(f)
 f.close()
 
-print(osc_data)
-x_data = osc_data["x_values"]
-y_data = osc_data["y_values"]
+x_data_osc = osc_data["x_values"]
+y_data_osc = osc_data["y_values"]
+x_data_sliced = x_data_osc[21250:]
+x_data = [x - x_data_sliced[0] for x in x_data_sliced]
 
-plt.plot(x_data, y_data)
-plt.show()
+y_data = y_data_osc[21250:]
 
-
-# y is another array which stores 3.45 times
-# the sine of (values in x) * 1.334.
-# The random.normal() draws random sample
-# from normal (Gaussian) distribution to make
-# them scatter across the base line
-y = 3.45 * np.sin(1.334 * x) + np.random.normal(size=40)
+tau_ms = 130
+t_0 = y_data[0]
+print(x_data[0])
+print(y_data[0])
+print(t_0)
 
 
-# Test function with coefficients as parameters
-def test(x, a, b):
-    return a * np.sin(b * x)
-
-def heating_function(x, a):
-    return a + ()
+def heating_function(x, t_env):
+    return t_env + ((t_0 - t_env)*np.exp(-(1/(tau_ms/1000))*x))
 
 
-# curve_fit() function takes the test-function
-# x-data and y-data as argument and returns
-# the coefficients a and b in param and
-# the estimated covariance of param in param_cov
-param, param_cov = curve_fit(test, x, y)
+param, param_cov = curve_fit(heating_function, x_data, y_data)
 
-print("Sine function coefficients:")
+print("Tenv:")
 print(param)
 print("Covariance of coefficients:")
 print(param_cov)
@@ -48,15 +38,24 @@ perr = np.sqrt(np.diag(param_cov))
 print(perr)
 
 
+prediction = []
+for i in range(len(x_data)):
+    prediction.append(param[0] + (t_0 - param[0])*np.exp(-(1/(tau_ms/1000))*x_data[i]))
 
-# ans stores the new y-data according to
-# the coefficients given by curve-fit() function
-ans = (param[0] * (np.sin(param[1] * x)))
 
-'''Below 4 lines can be un-commented for plotting results
-using matplotlib as shown in the first example. '''
-
-plt.plot(x, y, 'o', color ='red', label ="data")
-plt.plot(x, ans, '--', color ='blue', label ="optimized data")
-plt.legend()
+plt.plot(x_data, y_data)
+print("x_data[-1]: " + str(x_data[-1]))
+plt.plot(x_data, prediction, color="red")
 plt.show()
+
+# # ans stores the new y-data according to
+# # the coefficients given by curve-fit() function
+# ans = (param[0] * (np.sin(param[1] * x)))
+#
+# '''Below 4 lines can be un-commented for plotting results
+# using matplotlib as shown in the first example. '''
+#
+# plt.plot(x, y, 'o', color ='red', label ="data")
+# plt.plot(x, ans, '--', color ='blue', label ="optimized data")
+# plt.legend()
+# plt.show()
