@@ -1,0 +1,3 @@
+4 channels, any thermocouple
+0.1ms response time (10 kHz)
+

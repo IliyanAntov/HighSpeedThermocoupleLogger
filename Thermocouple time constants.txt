@@ -1,0 +1,4 @@
+Needle: 100ms
+Unshielded thermocouple: 30ms
+Unshielded thermocouple (sanded): 5-7ms
+Small needle: 140us (max meas time = 35ms)

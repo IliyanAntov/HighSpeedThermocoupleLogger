@@ -1,0 +1,16 @@
+Изисквания:
+	4 канала
+	1 sample/10us
+	12-16 bits/sample
+	
+STM32G4:
+	4 ADCs
+	4Msps maximum => 0.25us/sample min
+	32x oversample, right shift 1 => 8us/sample, 16 bits/sample
+	16 bits/10us = 1.6Mbps per channel
+	4*1.6Mbps = 6.4Mbps total
+
+USB 2.0 FS:
+	12Mbps max, ~8Mbps usable
+	
+	
