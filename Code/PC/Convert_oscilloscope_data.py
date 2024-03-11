@@ -7,7 +7,7 @@ xls = pd.ExcelFile('../../Measurements/Oscilloscope_data.xlsx')
 dataframe = pd.read_excel(xls, 'tek0001CH1')
 
 x_dataframe = dataframe["Time"].dropna().astype(float)
-y_dataframe = dataframe["Temperature"].dropna().astype(float)
+y_dataframe = dataframe["Voltage"].dropna().astype(float)
 
 x_data = x_dataframe.values.tolist()
 y_data = y_dataframe.values.tolist()
