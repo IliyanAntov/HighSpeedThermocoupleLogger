@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "usbd_cdc_if.h"
+#include "stm32g4xx_ll_usb.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -32,13 +33,15 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ADC_BUFFER_SIZE 5000				// uint16
-#define USB_BUFFER_SIZE ADC_BUFFER_SIZE*2 	// uint8
+#define USED_ADC_COUNT 1
+#define ADC_BUFFER_SIZE 10													// uint16
+#define USB_HEADER_SIZE 20														// uint8
+#define USB_BUFFER_SIZE USB_HEADER_SIZE + (ADC_BUFFER_SIZE * USED_ADC_COUNT) 	// uint8
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+extern USBD_HandleTypeDef hUsbDeviceFS;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -47,14 +50,23 @@ ADC_HandleTypeDef hadc2;
 ADC_HandleTypeDef hadc3;
 ADC_HandleTypeDef hadc4;
 DMA_HandleTypeDef hdma_adc1;
+DMA_HandleTypeDef hdma_adc2;
 
 UART_HandleTypeDef hlpuart1;
 
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
-uint16_t adc_buffer[ADC_BUFFER_SIZE];
-volatile int adc_conv_complete = 0;
+uint16_t adc_buffers[USED_ADC_COUNT][ADC_BUFFER_SIZE];
+
+enum ADC_STATE {
+  IDLE,
+  WAITING_START,
+  WAITING_END
+};
+
+volatile enum ADC_STATE adc_conv_state;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -115,26 +127,52 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffer, ADC_BUFFER_SIZE);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers[0], ADC_BUFFER_SIZE);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  uint8_t transmit_buffer[USB_BUFFER_SIZE];
+
+  unsigned char tx_buffer[USB_BUFFER_SIZE];
+
+  uint8_t adc_packet_counter = 0;
+
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	if(adc_conv_complete){
-		for(int i = 0; i < ADC_BUFFER_SIZE; i++){
-			transmit_buffer[(i*2)+1] = (uint8_t)(adc_buffer[i] & 0x00FF);
-			transmit_buffer[i*2] = (uint8_t)((adc_buffer[i] >> 8) & 0x00FF);
+	if(adc_conv_state == WAITING_START || adc_conv_state == WAITING_END){
+		for(int i = 0; i < USB_HEADER_SIZE; i++){
+			tx_buffer[i] = 0;
+		}
+		sprintf((char *)tx_buffer, "M%.3d;", adc_packet_counter);
+		// Determine place in ADC buffer
+		unsigned int adc_buffer_start_index;
+		if(adc_conv_state == WAITING_START)
+			adc_buffer_start_index = 0;
+		else if(adc_conv_state == WAITING_END)
+			adc_buffer_start_index = ADC_BUFFER_SIZE/2;
+
+		// Offset USB tx index by header length
+		unsigned int tx_start_index = USB_HEADER_SIZE;
+
+		// Iterate through all ADCs
+		for(int adc_index = 0; adc_index < USED_ADC_COUNT; adc_index++){
+			//
+			for(int i = 0; i < ADC_BUFFER_SIZE/2; i++){
+				tx_buffer[tx_start_index + (i*2)+1] = (uint8_t)(adc_buffers[adc_index][adc_buffer_start_index + i] & 0x00FF);
+				tx_buffer[tx_start_index + i*2] = (uint8_t)((adc_buffers[adc_index][adc_buffer_start_index + i] >> 8) & 0x00FF);
+			}
+			tx_start_index += ADC_BUFFER_SIZE/2;
 		}
 
-		while(CDC_Transmit_FS(transmit_buffer, USB_BUFFER_SIZE) != USBD_OK);
-		adc_conv_complete = 0;
+		while(CDC_Transmit_FS(tx_buffer, USB_BUFFER_SIZE) != USBD_OK);
+		adc_packet_counter++;
+		adc_conv_state = IDLE;
+
 	}
+
 
   }
   /* USER CODE END 3 */
@@ -289,11 +327,15 @@ static void MX_ADC2_Init(void)
   hadc2.Init.ContinuousConvMode = DISABLE;
   hadc2.Init.NbrOfConversion = 1;
   hadc2.Init.DiscontinuousConvMode = DISABLE;
-  hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc2.Init.DMAContinuousRequests = DISABLE;
+  hadc2.Init.ExternalTrigConv = ADC_EXTERNALTRIG_T2_TRGO;
+  hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
+  hadc2.Init.DMAContinuousRequests = ENABLE;
   hadc2.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc2.Init.OversamplingMode = DISABLE;
+  hadc2.Init.OversamplingMode = ENABLE;
+  hadc2.Init.Oversampling.Ratio = ADC_OVERSAMPLING_RATIO_32;
+  hadc2.Init.Oversampling.RightBitShift = ADC_RIGHTBITSHIFT_1;
+  hadc2.Init.Oversampling.TriggeredMode = ADC_TRIGGEREDMODE_SINGLE_TRIGGER;
+  hadc2.Init.Oversampling.OversamplingStopReset = ADC_REGOVERSAMPLING_CONTINUED_MODE;
   if (HAL_ADC_Init(&hadc2) != HAL_OK)
   {
     Error_Handler();
@@ -515,7 +557,7 @@ static void MX_TIM2_Init(void)
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 9;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
@@ -557,9 +599,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
-  /* DMAMUX_OVR_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMAMUX_OVR_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMAMUX_OVR_IRQn);
+  /* DMA1_Channel2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
 
 }
 
@@ -623,10 +665,20 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
-	HAL_GPIO_TogglePin(TEST_OUT_GPIO_Port, TEST_OUT_Pin);
+// Called when first half of buffer is filled
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc) {
+	if(adc_conv_state != IDLE){
+		HAL_GPIO_TogglePin(TEST_OUT_GPIO_Port, TEST_OUT_Pin);
+	}
+	adc_conv_state = WAITING_START;
+}
 
-    adc_conv_complete = 1;
+// Called when buffer is completely filled
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
+	if(adc_conv_state != IDLE){
+		HAL_GPIO_TogglePin(TEST_OUT_GPIO_Port, TEST_OUT_Pin);
+	}
+	adc_conv_state = WAITING_END;
 }
 
 

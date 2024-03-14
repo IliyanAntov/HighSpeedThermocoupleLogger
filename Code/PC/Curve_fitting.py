@@ -6,7 +6,7 @@ from scipy.optimize import curve_fit
 from matplotlib import pyplot as plt
 
 
-tau_ms = 130
+tau_ms = 133.6
 t_0 = 0
 temperature_queue_length = 5
 sample_period_us = 20
