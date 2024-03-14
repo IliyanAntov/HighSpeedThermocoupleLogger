@@ -28,6 +28,10 @@ extern DMA_HandleTypeDef hdma_adc1;
 
 extern DMA_HandleTypeDef hdma_adc2;
 
+extern DMA_HandleTypeDef hdma_adc3;
+
+extern DMA_HandleTypeDef hdma_adc4;
+
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
 
@@ -231,6 +235,24 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+    /* ADC3 DMA Init */
+    /* ADC3 Init */
+    hdma_adc3.Instance = DMA1_Channel3;
+    hdma_adc3.Init.Request = DMA_REQUEST_ADC3;
+    hdma_adc3.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_adc3.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_adc3.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_adc3.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
+    hdma_adc3.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
+    hdma_adc3.Init.Mode = DMA_CIRCULAR;
+    hdma_adc3.Init.Priority = DMA_PRIORITY_LOW;
+    if (HAL_DMA_Init(&hdma_adc3) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(hadc,DMA_Handle,hdma_adc3);
+
   /* USER CODE BEGIN ADC3_MspInit 1 */
 
   /* USER CODE END ADC3_MspInit 1 */
@@ -264,6 +286,24 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    /* ADC4 DMA Init */
+    /* ADC4 Init */
+    hdma_adc4.Instance = DMA1_Channel4;
+    hdma_adc4.Init.Request = DMA_REQUEST_ADC4;
+    hdma_adc4.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_adc4.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_adc4.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_adc4.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
+    hdma_adc4.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
+    hdma_adc4.Init.Mode = DMA_CIRCULAR;
+    hdma_adc4.Init.Priority = DMA_PRIORITY_LOW;
+    if (HAL_DMA_Init(&hdma_adc4) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(hadc,DMA_Handle,hdma_adc4);
 
   /* USER CODE BEGIN ADC4_MspInit 1 */
 
@@ -340,6 +380,8 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
     */
     HAL_GPIO_DeInit(GPIOB, GPIO_PIN_0);
 
+    /* ADC3 DMA DeInit */
+    HAL_DMA_DeInit(hadc->DMA_Handle);
   /* USER CODE BEGIN ADC3_MspDeInit 1 */
 
   /* USER CODE END ADC3_MspDeInit 1 */
@@ -360,6 +402,8 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
     */
     HAL_GPIO_DeInit(GPIOB, GPIO_PIN_15);
 
+    /* ADC4 DMA DeInit */
+    HAL_DMA_DeInit(hadc->DMA_Handle);
   /* USER CODE BEGIN ADC4_MspDeInit 1 */
 
   /* USER CODE END ADC4_MspDeInit 1 */

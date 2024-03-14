@@ -33,8 +33,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define USED_ADC_COUNT 1
-#define ADC_BUFFER_SIZE 10													// uint16
+#define USED_ADC_COUNT 4
+#define ADC_BUFFER_SIZE 2000													// uint16
 #define USB_HEADER_SIZE 20														// uint8
 #define USB_BUFFER_SIZE USB_HEADER_SIZE + (ADC_BUFFER_SIZE * USED_ADC_COUNT) 	// uint8
 /* USER CODE END PD */
@@ -51,6 +51,8 @@ ADC_HandleTypeDef hadc3;
 ADC_HandleTypeDef hadc4;
 DMA_HandleTypeDef hdma_adc1;
 DMA_HandleTypeDef hdma_adc2;
+DMA_HandleTypeDef hdma_adc3;
+DMA_HandleTypeDef hdma_adc4;
 
 UART_HandleTypeDef hlpuart1;
 
@@ -65,7 +67,7 @@ enum ADC_STATE {
   WAITING_END
 };
 
-volatile enum ADC_STATE adc_conv_state;
+volatile enum ADC_STATE adc_conv_state = IDLE;
 
 /* USER CODE END PV */
 
@@ -128,6 +130,18 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers[0], ADC_BUFFER_SIZE);
+  if(USED_ADC_COUNT > 1){
+	  HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
+	  HAL_ADC_Start_DMA(&hadc2, (uint32_t*)adc_buffers[1], ADC_BUFFER_SIZE);
+  }
+  if(USED_ADC_COUNT > 2){
+	  HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED);
+	  HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc_buffers[2], ADC_BUFFER_SIZE);
+  }
+  if(USED_ADC_COUNT > 3){
+ 	  HAL_ADCEx_Calibration_Start(&hadc4, ADC_SINGLE_ENDED);
+ 	  HAL_ADC_Start_DMA(&hadc4, (uint32_t*)adc_buffers[3], ADC_BUFFER_SIZE);
+   }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -143,10 +157,14 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	if(adc_conv_state == WAITING_START || adc_conv_state == WAITING_END){
+
+		// Clear header
 		for(int i = 0; i < USB_HEADER_SIZE; i++){
 			tx_buffer[i] = 0;
 		}
+		// Write header
 		sprintf((char *)tx_buffer, "M%.3d;", adc_packet_counter);
+
 		// Determine place in ADC buffer
 		unsigned int adc_buffer_start_index;
 		if(adc_conv_state == WAITING_START)
@@ -159,12 +177,12 @@ int main(void)
 
 		// Iterate through all ADCs
 		for(int adc_index = 0; adc_index < USED_ADC_COUNT; adc_index++){
-			//
+
 			for(int i = 0; i < ADC_BUFFER_SIZE/2; i++){
 				tx_buffer[tx_start_index + (i*2)+1] = (uint8_t)(adc_buffers[adc_index][adc_buffer_start_index + i] & 0x00FF);
 				tx_buffer[tx_start_index + i*2] = (uint8_t)((adc_buffers[adc_index][adc_buffer_start_index + i] >> 8) & 0x00FF);
 			}
-			tx_start_index += ADC_BUFFER_SIZE/2;
+			tx_start_index += ADC_BUFFER_SIZE;
 		}
 
 		while(CDC_Transmit_FS(tx_buffer, USB_BUFFER_SIZE) != USBD_OK);
@@ -381,7 +399,7 @@ static void MX_ADC3_Init(void)
   /** Common config
   */
   hadc3.Instance = ADC3;
-  hadc3.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc3.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
   hadc3.Init.Resolution = ADC_RESOLUTION_12B;
   hadc3.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc3.Init.GainCompensation = 0;
@@ -391,11 +409,15 @@ static void MX_ADC3_Init(void)
   hadc3.Init.ContinuousConvMode = DISABLE;
   hadc3.Init.NbrOfConversion = 1;
   hadc3.Init.DiscontinuousConvMode = DISABLE;
-  hadc3.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc3.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc3.Init.DMAContinuousRequests = DISABLE;
+  hadc3.Init.ExternalTrigConv = ADC_EXTERNALTRIG_T2_TRGO;
+  hadc3.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
+  hadc3.Init.DMAContinuousRequests = ENABLE;
   hadc3.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc3.Init.OversamplingMode = DISABLE;
+  hadc3.Init.OversamplingMode = ENABLE;
+  hadc3.Init.Oversampling.Ratio = ADC_OVERSAMPLING_RATIO_32;
+  hadc3.Init.Oversampling.RightBitShift = ADC_RIGHTBITSHIFT_1;
+  hadc3.Init.Oversampling.TriggeredMode = ADC_TRIGGEREDMODE_SINGLE_TRIGGER;
+  hadc3.Init.Oversampling.OversamplingStopReset = ADC_REGOVERSAMPLING_CONTINUED_MODE;
   if (HAL_ADC_Init(&hadc3) != HAL_OK)
   {
     Error_Handler();
@@ -448,7 +470,7 @@ static void MX_ADC4_Init(void)
   /** Common config
   */
   hadc4.Instance = ADC4;
-  hadc4.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc4.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
   hadc4.Init.Resolution = ADC_RESOLUTION_12B;
   hadc4.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc4.Init.GainCompensation = 0;
@@ -458,11 +480,15 @@ static void MX_ADC4_Init(void)
   hadc4.Init.ContinuousConvMode = DISABLE;
   hadc4.Init.NbrOfConversion = 1;
   hadc4.Init.DiscontinuousConvMode = DISABLE;
-  hadc4.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc4.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc4.Init.DMAContinuousRequests = DISABLE;
+  hadc4.Init.ExternalTrigConv = ADC_EXTERNALTRIG_T2_TRGO;
+  hadc4.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
+  hadc4.Init.DMAContinuousRequests = ENABLE;
   hadc4.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc4.Init.OversamplingMode = DISABLE;
+  hadc4.Init.OversamplingMode = ENABLE;
+  hadc4.Init.Oversampling.Ratio = ADC_OVERSAMPLING_RATIO_32;
+  hadc4.Init.Oversampling.RightBitShift = ADC_RIGHTBITSHIFT_1;
+  hadc4.Init.Oversampling.TriggeredMode = ADC_TRIGGEREDMODE_SINGLE_TRIGGER;
+  hadc4.Init.Oversampling.OversamplingStopReset = ADC_REGOVERSAMPLING_CONTINUED_MODE;
   if (HAL_ADC_Init(&hadc4) != HAL_OK)
   {
     Error_Handler();
@@ -602,6 +628,12 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+  /* DMA1_Channel4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
 
 }
 
