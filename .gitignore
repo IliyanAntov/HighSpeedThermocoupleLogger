@@ -259,3 +259,6 @@ fp-info-cache
 
 # Netlist
 *.net
+
+# Word temp files
+~$*.docx
