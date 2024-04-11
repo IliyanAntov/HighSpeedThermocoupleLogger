@@ -1,0 +1,56 @@
+Chosen MCU: STM32G474
+Chosen In-amp: AD8421
+Chosen temperature range: -20°C to 200°C
+Using internal reference voltage buffer of STM32G474
+
+Thermocoule full scale voltages at chosen temperature range:
+	J: 11.774 mV 
+	K: 8.916 mV
+	T: 10.045 mV
+	E: 14.573 mV
+Maximum TC reverse voltage for chosen temperature range:
+	J: -0.995 mV 
+	K: -0.778 mV
+	T: -0.757 mV
+	E: -1.152 mV
+
+Using Vtc(max) = 14.573  mV for further calculations
+
+Vref+ and Vref- requirements for STM32G474:
+	Vref- == Vssa 		tied internally
+	Vref+ == Vdda 		when Vdda < 2V
+	2V < Vref+ < Vdda 	when Vdda >= 2V
+
+Vdda and Vssa requirements for STM32G474:
+	1.62V < Vdda < 3.6V
+	When Vrefbuf_out = 2.9V is used: 3.135V < Vdda < 3.6V
+	Vssa = Vss = 0V
+
+Choose Vdda = Vdd = 3.3V
+Total amplification needed: Au = Vref+(max) / Vtc(fs) = 2.9/14.573m = 199 times ~= 46dB
+
+Choose in-amp with Au = 199.4
+
+Available internal reference voltages for STM32G474: 
+	VRS=00 => Vrefbuf_out = 2.048V +- 4mV
+	VRS=01 => Vrefbuf_out = 2.5V +- 4mV
+	VRS=10 => Vrefbuf_out = 2.9V +- 4mV
+
+Chosen Vrefbuf_out for each thermocouple type where Vref+ <= (Vtc(fs) * Au):
+	J: 2.348V => Vref+ = 2.5V 
+	K: 1.778V => Vref+ = 2.048V 
+	T: 2.003V => Vref+ = 2.048V 
+	E: 2.906V => Vref+ = 2.9V 
+
+-----------------------------------------------------------------------------
+
+Power supplies needed:
+In-amp:
+	+Vs: +5V
+	-Vs: -5V
+	REF: 1.152mV
+MCU:
+	VDD/AVDD: +3.3V
+	VSS/AVSS: 0V	
+
+
