@@ -1,0 +1,15 @@
+Component   : RM12
+PCB Library : RM6_M33.PcbLib
+Date        : 24-Apr-24
+Time        : 12:27:21
+
+
+
+Dimension : 60.858 x 34.773 mm
+
+ Layer(s)              Pads(s)  Tracks(s)  Fill(s)  Arc(s)  Text(s)
+--------------------------------------------------------------------
+ Multi Layer                10          0        0       0        0
+ Top Overlay                 0         59        0       8        0
+--------------------------------------------------------------------
+ Total                      10         59        0       8        0
