@@ -271,33 +271,50 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=
 
+[Document14]
+DocumentPath=external.SchDoc
+AnnotationEnabled=1
+AnnotateStartValue=1
+AnnotationIndexControlEnabled=0
+AnnotateSuffix=
+AnnotateScope=All
+AnnotateOrder=9
+DoLibraryUpdate=1
+DoDatabaseUpdate=1
+ClassGenCCAutoEnabled=1
+ClassGenCCAutoRoomEnabled=0
+ClassGenNCAutoScope=None
+DItemRevisionGUID=
+GenerateClassCluster=0
+DocumentUniqueId=CBAVRFGJ
+
 [Parameter1]
-Name=CheckedBy
-Value=Boris Botev
+Name=Title
+Value=logger
 
 [Parameter2]
-Name=Date
-Value=2024-04-10
+Name=Revision
+Value=001
 
 [Parameter3]
-Name=DrawnBy
-Value=Iliyan Antov
+Name=Project
+Value=286
 
 [Parameter4]
 Name=DrawnByID
 Value=IA
 
 [Parameter5]
-Name=Project
-Value=286
+Name=DrawnBy
+Value=Iliyan Antov
 
 [Parameter6]
-Name=Revision
-Value=001
+Name=Date
+Value=2024-04-10
 
 [Parameter7]
-Name=Title
-Value=logger
+Name=CheckedBy
+Value=Boris Botev
 
 [Configuration1]
 Name=Default Configuration
@@ -1262,16 +1279,16 @@ Type153=1
 
 [ERC Connection Matrix]
 L1=NNNNNNNNNNNWNNNWW
-L2=NNWNNNNWWWNWNWNWW
-L3=NWEENWEEENWWNEEWW
+L2=NNWNNNNWNNNWNWNWW
+L3=NWEENWEEENNWNEEWW
 L4=NNENNNNEENNWNENWW
 L5=NNNNNNNNNNNWNNNWW
 L6=NNWNNNNEENNWNENWW
 L7=NNENNNNEENNWNENWW
 L8=NWEENEENEEEWNEEWW
-L9=NWEENEEEENEWNEEWW
-L10=NWNNNNNENNEWNNEWW
-L11=NNWNNNNEEENWNENWW
+L9=NNEENEEEENEWNEEWW
+L10=NNNNNNNENNEWNNEWW
+L11=NNNNNNNEEENWNENWW
 L12=WWWWWWWWWWWWWWWWW
 L13=NNNNNNNNNNNWNNNWW
 L14=NWEENEEEENEWNEEWW
