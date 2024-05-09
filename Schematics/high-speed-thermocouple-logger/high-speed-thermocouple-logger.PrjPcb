@@ -68,7 +68,7 @@ GenerateClassCluster=0
 DocumentUniqueId=
 
 [Document2]
-DocumentPath=General_4L_35um_5KT.PcbDoc
+DocumentPath=high-spped-thermocouple-logger.PcbDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
 AnnotationIndexControlEnabled=0
@@ -85,7 +85,7 @@ GenerateClassCluster=0
 DocumentUniqueId=GBQVOXXF
 
 [Document3]
-DocumentPath=General_4L_35um_5KT_PANEL.PcbDoc
+DocumentPath=high-spped-thermocouple-logger_panel.PcbDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
 AnnotationIndexControlEnabled=0
