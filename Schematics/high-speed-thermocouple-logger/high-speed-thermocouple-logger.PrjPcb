@@ -294,11 +294,11 @@ Value=logger
 
 [Parameter2]
 Name=Revision
-Value=001
+Value=100
 
 [Parameter3]
 Name=Project
-Value=286
+Value=V286
 
 [Parameter4]
 Name=DrawnByID
