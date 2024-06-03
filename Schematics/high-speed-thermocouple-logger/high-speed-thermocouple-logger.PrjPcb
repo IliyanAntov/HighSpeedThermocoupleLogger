@@ -83,9 +83,43 @@ ClassGenCCAutoRoomEnabled=0
 ClassGenNCAutoScope=None
 DItemRevisionGUID=
 GenerateClassCluster=0
-DocumentUniqueId=GBQVOXXF
+DocumentUniqueId=OSKWORYS
 
 [Document3]
+DocumentPath=high-spped-thermocouple-logger-2ch_panel.PcbDoc
+AnnotationEnabled=1
+AnnotateStartValue=1
+AnnotationIndexControlEnabled=0
+AnnotateSuffix=
+AnnotateScope=All
+AnnotateOrder=-1
+DoLibraryUpdate=1
+DoDatabaseUpdate=1
+ClassGenCCAutoEnabled=1
+ClassGenCCAutoRoomEnabled=0
+ClassGenNCAutoScope=None
+DItemRevisionGUID=
+GenerateClassCluster=0
+DocumentUniqueId=QXKWMPVK
+
+[Document4]
+DocumentPath=high-spped-thermocouple-logger-2ch.PcbDoc
+AnnotationEnabled=1
+AnnotateStartValue=1
+AnnotationIndexControlEnabled=0
+AnnotateSuffix=
+AnnotateScope=All
+AnnotateOrder=-1
+DoLibraryUpdate=1
+DoDatabaseUpdate=1
+ClassGenCCAutoEnabled=1
+ClassGenCCAutoRoomEnabled=0
+ClassGenNCAutoScope=None
+DItemRevisionGUID=
+GenerateClassCluster=0
+DocumentUniqueId=GBQVOXXF
+
+[Document5]
 DocumentPath=Top.SchDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
@@ -102,7 +136,7 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=MNJDGFNP
 
-[Document4]
+[Document6]
 DocumentPath=ProjectInfo.SchDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
@@ -119,7 +153,7 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=YZWMYFBY
 
-[Document5]
+[Document7]
 DocumentPath=power.SchDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
@@ -136,7 +170,7 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=PWZRLVOU
 
-[Document6]
+[Document8]
 DocumentPath=filter.SchDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
@@ -153,7 +187,7 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=FNHWHFZR
 
-[Document7]
+[Document9]
 DocumentPath=inamp.SchDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
@@ -170,7 +204,7 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=OITHGSGB
 
-[Document8]
+[Document10]
 DocumentPath=cjc.SchDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
@@ -187,7 +221,7 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=UGHFLKTA
 
-[Document9]
+[Document11]
 DocumentPath=mcu.SchDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
@@ -204,7 +238,7 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=GIGEAIGC
 
-[Document10]
+[Document12]
 DocumentPath=C_76p593.SchDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
@@ -221,7 +255,7 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=LJGNXYMR
 
-[Document11]
+[Document13]
 DocumentPath=C_376p667.SchDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
@@ -238,7 +272,7 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=SHPVDPFQ
 
-[Document12]
+[Document14]
 DocumentPath=Footprints\custom-footprints.LibPkg
 AnnotationEnabled=1
 AnnotateStartValue=1
@@ -255,7 +289,7 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=
 
-[Document13]
+[Document15]
 DocumentPath=external.SchDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
@@ -272,7 +306,7 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=CBAVRFGJ
 
-[Document14]
+[Document16]
 DocumentPath=OutJob_AssyDrw_BOM_PP_111.OutJob
 AnnotationEnabled=1
 AnnotateStartValue=1
@@ -289,25 +323,8 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=
 
-[Document15]
+[Document17]
 DocumentPath=high-speed-thermocouple-logger.Annotation
-AnnotationEnabled=1
-AnnotateStartValue=1
-AnnotationIndexControlEnabled=0
-AnnotateSuffix=
-AnnotateScope=All
-AnnotateOrder=-1
-DoLibraryUpdate=1
-DoDatabaseUpdate=1
-ClassGenCCAutoEnabled=1
-ClassGenCCAutoRoomEnabled=0
-ClassGenNCAutoScope=None
-DItemRevisionGUID=
-GenerateClassCluster=0
-DocumentUniqueId=
-
-[Document16]
-DocumentPath=Project Outputs for high-speed-thermocouple-logger\V286-64tclogger100\stencil_camtastic.Cam
 AnnotationEnabled=1
 AnnotateStartValue=1
 AnnotationIndexControlEnabled=0
@@ -332,32 +349,32 @@ VariationCount=0
 ParamVariationCount=0
 
 [Parameter1]
-Name=Title
-Value=tclogger
+Name=CheckedBy
+Value=Boris Botev
 
 [Parameter2]
-Name=Revision
-Value=100
+Name=Date
+Value=2024-05-30
 
 [Parameter3]
-Name=Project
-Value=V286
+Name=DrawnBy
+Value=Iliyan Antov
 
 [Parameter4]
 Name=DrawnByID
 Value=IA
 
 [Parameter5]
-Name=DrawnBy
-Value=Iliyan Antov
+Name=Project
+Value=V286
 
 [Parameter6]
-Name=Date
-Value=2024-05-30
+Name=Revision
+Value=100
 
 [Parameter7]
-Name=CheckedBy
-Value=Boris Botev
+Name=Title
+Value=tclogger
 
 [Configuration1]
 Name=Default Configuration
