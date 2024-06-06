@@ -5,6 +5,9 @@ from PyQt5.QtCore import QRegularExpression, Qt, QSize, QEventLoop, QTimer, pyqt
 from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import *
 
+from PC.SharedParameters import SharedParameters
+from PlotLogic import PlotLogic
+
 from MainWindowUI import Ui_Form
 from PyQt5 import QtWidgets, QtTest
 import sys
@@ -32,7 +35,6 @@ class MainWindowLogic:
         self.temperature_prediction_enabled = [False, False, False, False]
         self.prediction_processing_enabled = [False, False, False, False]
 
-        self.record_folder_dir = "./data/"
 
     def run(self):
         self.ui.setupUi(self.form)
@@ -168,6 +170,7 @@ class MainWindowLogic:
         self.ui.RecordIntervalMinButton.clicked.connect(lambda: record_interval_widget.setValue(self.record_interval_min_max["min"]))
         self.ui.RecordIntervalMaxButton.clicked.connect(lambda: record_interval_widget.setValue(self.record_interval_min_max["max"]))
 
+        self.ui.ViewRecordButton.clicked.connect(self.view_selected_record)
         self.ui.RenameRecordButton.clicked.connect(self.rename_selected_record)
         self.ui.DeleteRecordButton.clicked.connect(self.delete_selected_record)
 
@@ -234,11 +237,20 @@ class MainWindowLogic:
     def display_available_records(self):
         self.ui.RecordsList.clear()
         self.ui.RecordsList.setItemAlignment(Qt.AlignRight)
-        record_list = os.listdir(self.record_folder_dir)
+        record_list = os.listdir(SharedParameters.record_folder_dir)
         for record in record_list:
             item = QListWidgetItem(record.replace(".json", ""))
             item.setTextAlignment(Qt.AlignRight)
             self.ui.RecordsList.addItem(item)
+
+    def view_selected_record(self):
+        selected_record = self.ui.RecordsList.currentItem()
+        if not selected_record:
+            return
+        
+        selected_record_file_name = selected_record.text() + ".json"
+        plot_window = PlotLogic()
+        plot_window.run(selected_record_file_name)
 
     def rename_selected_record(self):
         selected_record = self.ui.RecordsList.currentItem()
@@ -254,7 +266,7 @@ class MainWindowLogic:
         if not (ok and new_name):
             return
 
-        os.rename(str(self.record_folder_dir + current_name + ".json"), str(self.record_folder_dir + new_name + ".json"))
+        os.rename(str(SharedParameters.record_folder_dir + current_name + ".json"), str(SharedParameters.record_folder_dir + new_name + ".json"))
         self.display_available_records()
 
     def delete_selected_record(self):
@@ -273,7 +285,7 @@ class MainWindowLogic:
         if response == QMessageBox.No:
             return
 
-        os.remove(str(self.record_folder_dir + selected_record_name + ".json"))
+        os.remove(str(SharedParameters.record_folder_dir + selected_record_name + ".json"))
         self.display_available_records()
 
 
