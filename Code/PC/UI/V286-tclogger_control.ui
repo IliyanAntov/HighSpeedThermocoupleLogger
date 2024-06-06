@@ -159,12 +159,7 @@
         <widget class="QComboBox" name="TriggerSourceValue">
          <item>
           <property name="text">
-           <string>Box button</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>External button</string>
+           <string>Box/External button</string>
           </property>
          </item>
          <item>
@@ -290,24 +285,15 @@
       </widget>
      </item>
      <item>
-      <widget class="QListView" name="RecordsList">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="maximumSize">
-        <size>
-         <width>16777215</width>
-         <height>16777215</height>
-        </size>
-       </property>
+      <widget class="QListWidget" name="RecordsList">
        <property name="font">
         <font>
          <family>Calibri</family>
          <pointsize>12</pointsize>
         </font>
+       </property>
+       <property name="selectionRectVisible">
+        <bool>false</bool>
        </property>
       </widget>
      </item>
@@ -536,7 +522,7 @@
       </widget>
      </item>
      <item row="14" column="2" alignment="Qt::AlignHCenter">
-      <widget class="QCheckBox" name="PredictionLowPassEnabled_1">
+      <widget class="QCheckBox" name="PostProcessLowPassEnabled_1">
        <property name="font">
         <font>
          <family>Calibri</family>
@@ -569,7 +555,7 @@
       </widget>
      </item>
      <item row="15" column="4">
-      <widget class="QSpinBox" name="PredictionLowPassOrder_3">
+      <widget class="QSpinBox" name="PostProcessLowPassOrder_3">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
          <horstretch>0</horstretch>
@@ -715,7 +701,7 @@
       </widget>
      </item>
      <item row="14" column="4" alignment="Qt::AlignHCenter">
-      <widget class="QCheckBox" name="PredictionLowPassEnabled_3">
+      <widget class="QCheckBox" name="PostProcessLowPassEnabled_3">
        <property name="font">
         <font>
          <family>Calibri</family>
@@ -797,7 +783,7 @@
       </widget>
      </item>
      <item row="16" column="2">
-      <widget class="QDoubleSpinBox" name="PredictionLowPassCornerFrequency_1">
+      <widget class="QDoubleSpinBox" name="PostProcessLowPassCornerFrequency_1">
        <property name="buttonSymbols">
         <enum>QAbstractSpinBox::NoButtons</enum>
        </property>
@@ -830,7 +816,7 @@
       </widget>
      </item>
      <item row="16" column="3">
-      <widget class="QDoubleSpinBox" name="PredictionLowPassCornerFrequency_2">
+      <widget class="QDoubleSpinBox" name="PostProcessLowPassCornerFrequency_2">
        <property name="buttonSymbols">
         <enum>QAbstractSpinBox::NoButtons</enum>
        </property>
@@ -907,6 +893,9 @@
        <property name="maximum">
         <number>1000</number>
        </property>
+       <property name="value">
+        <number>10</number>
+       </property>
       </widget>
      </item>
      <item row="6" column="1">
@@ -966,7 +955,7 @@
       </widget>
      </item>
      <item row="14" column="5" alignment="Qt::AlignHCenter">
-      <widget class="QCheckBox" name="PredictionLowPassEnabled_4">
+      <widget class="QCheckBox" name="PostProcessLowPassEnabled_4">
        <property name="font">
         <font>
          <family>Calibri</family>
@@ -1059,7 +1048,7 @@
       </widget>
      </item>
      <item row="16" column="4">
-      <widget class="QDoubleSpinBox" name="PredictionLowPassCornerFrequency_3">
+      <widget class="QDoubleSpinBox" name="PostProcessLowPassCornerFrequency_3">
        <property name="buttonSymbols">
         <enum>QAbstractSpinBox::NoButtons</enum>
        </property>
@@ -1092,7 +1081,7 @@
       </widget>
      </item>
      <item row="16" column="5">
-      <widget class="QDoubleSpinBox" name="PredictionLowPassCornerFrequency_4">
+      <widget class="QDoubleSpinBox" name="PostProcessLowPassCornerFrequency_4">
        <property name="buttonSymbols">
         <enum>QAbstractSpinBox::NoButtons</enum>
        </property>
@@ -1128,7 +1117,7 @@
       </widget>
      </item>
      <item row="15" column="2">
-      <widget class="QSpinBox" name="PredictionLowPassOrder_1">
+      <widget class="QSpinBox" name="PostProcessLowPassOrder_1">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
          <horstretch>0</horstretch>
@@ -1416,7 +1405,7 @@
       </widget>
      </item>
      <item row="14" column="3" alignment="Qt::AlignHCenter">
-      <widget class="QCheckBox" name="PredictionLowPassEnabled_2">
+      <widget class="QCheckBox" name="PostProcessLowPassEnabled_2">
        <property name="font">
         <font>
          <family>Calibri</family>
@@ -1450,7 +1439,7 @@
       </widget>
      </item>
      <item row="15" column="5">
-      <widget class="QSpinBox" name="PredictionLowPassOrder_4">
+      <widget class="QSpinBox" name="PostProcessLowPassOrder_4">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
          <horstretch>0</horstretch>
@@ -1580,7 +1569,7 @@
       </widget>
      </item>
      <item row="15" column="3">
-      <widget class="QSpinBox" name="PredictionLowPassOrder_2">
+      <widget class="QSpinBox" name="PostProcessLowPassOrder_2">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
          <horstretch>0</horstretch>
