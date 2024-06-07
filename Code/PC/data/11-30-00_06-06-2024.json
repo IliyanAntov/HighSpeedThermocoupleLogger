@@ -31,11 +31,11 @@
                   86.97490026,  91.11627561,  95.45484567, 100        ],
       "data_processing": {
         "enabled": true,
-        "filter_order": 2,
-        "filter_corner_frequency_khz": 500.0
+        "filter_order": 3,
+        "filter_corner_frequency_khz": 10.0
       },
       "temperature_prediction": {
-        "enabled": false,
+        "enabled": true,
         "time_constant_ms": 150.0,
         "record_queue_length": 11
       },
@@ -69,8 +69,8 @@
                    66.56291353, 69.57035868, 72.7136862 , 75.99903552, 79.43282347],
       "data_processing": {
         "enabled": true,
-        "filter_order": 3,
-        "filter_corner_frequency_khz": 300.0
+        "filter_order": 10,
+        "filter_corner_frequency_khz": 30.0
       },
       "temperature_prediction": {
         "enabled": false,
