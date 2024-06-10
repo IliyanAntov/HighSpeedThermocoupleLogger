@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 class PlotLogic:
     def __init__(self):
         # TODO: delete
-        self.app = QtWidgets.QApplication(sys.argv)
+        # self.app = QtWidgets.QApplication(sys.argv)
         self.ui = Ui_Form()
         self.form = QtWidgets.QWidget()
         self.record_file_name = None
@@ -37,10 +37,11 @@ class PlotLogic:
 
         self.update_enabled_widgets()
         self.assign_button_functions()
+        self.set_field_limit_values()
 
         self.form.show()
         # TODO: delete
-        sys.exit(self.app.exec_())
+        # sys.exit(self.app.exec_())
 
     def update_enabled_widgets(self):
         for widget_index in range(self.ui.ChannelParametersLayout.count()):
@@ -227,6 +228,10 @@ class PlotLogic:
 
         self.record.interval_us = file_json["record_interval_us"]
         self.record.length_ms = file_json["record_length_ms"]
+        record_length_widget = self.form.findChild(QSpinBox, "RecordLengthValue")
+        record_length_widget.setValue(self.record.length_ms)
+        record_interval_widget = self.form.findChild(QSpinBox, f"RecordIntervalValue")
+        record_interval_widget.setValue(self.record.interval_us)
 
         channel_index = 0
         channel_names = file_json["channel_data"]
@@ -374,6 +379,13 @@ class PlotLogic:
         data_filtered = signal.filtfilt(b, a, data)
         return data_filtered.tolist()
 
+    def set_field_limit_values(self):
+        max_filter_frequency_khz = (1.0 / (self.record.interval_us / 10**3)) / 2 - 0.001
+        filter_field_names = QRegularExpression(r".*Frequency.*")
+        filter_field_widgets = self.form.findChildren(QDoubleSpinBox, filter_field_names)
+        for widget in filter_field_widgets:
+            widget.setMaximum(max_filter_frequency_khz)
+
     @staticmethod
     def heating_function(x, t_env, tau_ms, t_0):
         return t_env + ((t_0 - t_env) * np.exp(-(1 / (tau_ms / 1000)) * x))
@@ -394,11 +406,9 @@ class PlotLogic:
             y_short.pop(0)
             y_short.append(data_point)
 
-        # predictions += [predictions[-1]] * channel_parameters.prediction_queue_length
-
         return predictions
 
 # TODO: delete
-if __name__ == "__main__":
-    plot_window = PlotLogic()
-    plot_window.run("11-30-00_06-06-2024.json")
+# if __name__ == "__main__":
+#     plot_window = PlotLogic()
+#     plot_window.run("11-30-00_06-06-2024.json")
