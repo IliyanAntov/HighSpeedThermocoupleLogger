@@ -1,10 +1,14 @@
+import json
 import os
 import time
+from datetime import datetime
 
+import jsonpickle as jsonpickle
 from PyQt5.QtCore import QRegularExpression, Qt, QSize, QEventLoop, QTimer, pyqtSignal, QObject
 from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import *
 
+from PC.Record import Record
 from PC.SharedParameters import SharedParameters
 from PlotLogic import PlotLogic
 
@@ -18,27 +22,22 @@ class MainWindowLogic:
         self.ui = Ui_Form()
         self.app = QtWidgets.QApplication(sys.argv)
         self.form = QtWidgets.QWidget()
-        self.widgets = []
+        self.record = Record(number_of_channels=4)
         self.connection_established = False
 
-        self.record_length_min_max = {
-            "min": 100,
+        self.record_length_ms_min_max = {
+            "min": 1,
             "max": 2000
         }
-        self.record_interval_min_max = {
+        self.record_interval_us_min_max = {
             "min": 10,
             "max": 1000
         }
 
-        self.channel_enabled = [False, False, False, False]
-        self.data_processing_enabled = [False, False, False, False]
-        self.temperature_prediction_enabled = [False, False, False, False]
-        self.prediction_processing_enabled = [False, False, False, False]
-
-
     def run(self):
         self.ui.setupUi(self.form)
-        self.widgets = self.form.children()
+        self.ui.RecordLengthValue.setValue(self.record.length_ms)
+        self.ui.RecordIntervalValue.setValue(self.record.interval_us)
 
         self.update_enabled_widgets()
         self.assign_button_functions()
@@ -92,56 +91,110 @@ class MainWindowLogic:
         checkbox_object_names = QRegularExpression(fr"[^ChannelEnabled].*_{channel}")
         checkbox_object_widgets = self.form.findChildren(QCheckBox, checkbox_object_names)
         # Enable/Disable relevant objects
-        tc_type_selector_widget.setEnabled(self.channel_enabled[channel_index])
+        tc_type_selector_widget.setEnabled(self.record.channels[channel_index].available)
         for widget in checkbox_object_widgets:
             if "PostProcess" in widget.objectName():
-                if not self.temperature_prediction_enabled[channel_index]:
-                    self.prediction_processing_enabled[channel_index] = False
+                if not self.record.channels[channel_index].temperature_prediction_enabled:
+                    self.record.channels[channel_index].prediction_processing_enabled = False
                     widget.setChecked(False)
                     widget.setEnabled(False)
                     continue
-            widget.setEnabled(self.channel_enabled[channel_index])
+            widget.setEnabled(self.record.channels[channel_index].available)
 
         # Data pre-processing
         data_processing_names = QRegularExpression(fr"DataLowPass.*_{channel}")
         data_processing_widgets = self.form.findChildren((QSpinBox, QDoubleSpinBox), data_processing_names)
         # Enable/Disable relevant objects
         for widget in data_processing_widgets:
-            widget.setEnabled(self.data_processing_enabled[channel_index] and self.channel_enabled[channel_index])
+            widget.setEnabled(self.record.channels[channel_index].data_processing_enabled and self.record.channels[channel_index].available)
 
         # Temperature prediction
         temperature_prediction_names = QRegularExpression(fr"Prediction.*_{channel}")
         temperature_prediction_widgets = self.form.findChildren((QSpinBox, QDoubleSpinBox), temperature_prediction_names)
         # Enable/Disable relevant objects
         for widget in temperature_prediction_widgets:
-            widget.setEnabled(self.temperature_prediction_enabled[channel_index] and self.channel_enabled[channel_index])
+            widget.setEnabled(self.record.channels[channel_index].temperature_prediction_enabled and self.record.channels[channel_index].available)
 
         # Prediction post-processing
         post_processing_names = QRegularExpression(fr"PostProcess.*_{channel}")
         post_processing_widgets = self.form.findChildren((QSpinBox, QDoubleSpinBox), post_processing_names)
         # Enable/Disable relevant objects
         for widget in post_processing_widgets:
-            widget.setEnabled(self.prediction_processing_enabled[channel_index] and self.channel_enabled[channel_index])
+            widget.setEnabled(self.record.channels[channel_index].prediction_processing_enabled and self.record.channels[channel_index].available)
 
     def toggle_channel(self, channel):
         channel_index = channel - 1
-        self.channel_enabled[channel_index] = not self.channel_enabled[channel_index]
+        self.record.channels[channel_index].available = not self.record.channels[channel_index].available
         self.update_channel_widgets_enable_status(channel)
 
     def toggle_data_processing(self, channel):
         channel_index = channel - 1
-        self.data_processing_enabled[channel_index] = not self.data_processing_enabled[channel_index]
+        self.record.channels[channel_index].data_processing_enabled = not self.record.channels[channel_index].data_processing_enabled
         self.update_channel_widgets_enable_status(channel)
 
     def toggle_temperature_prediction(self, channel):
         channel_index = channel - 1
-        self.temperature_prediction_enabled[channel_index] = not self.temperature_prediction_enabled[channel_index]
+        self.record.channels[channel_index].temperature_prediction_enabled = not self.record.channels[channel_index].temperature_prediction_enabled
         self.update_channel_widgets_enable_status(channel)
 
     def toggle_prediction_processing(self, channel):
         channel_index = channel - 1
-        self.prediction_processing_enabled[channel_index] = not self.prediction_processing_enabled[channel_index]
+        self.record.channels[channel_index].prediction_processing_enabled = not self.record.channels[channel_index].prediction_processing_enabled
         self.update_channel_widgets_enable_status(channel)
+
+    def record_length_changed(self):
+        self.record.length_ms = self.ui.RecordLengthValue.value()
+        self.set_field_limit_values()
+
+    def set_record_length(self, value):
+        self.record.length_ms = value
+        self.ui.RecordLengthValue.setValue(self.record.length_ms)
+        self.set_field_limit_values()
+
+    def record_interval_changed(self):
+        self.record.interval_us = self.ui.RecordIntervalValue.value()
+        self.set_field_limit_values()
+
+    def set_record_interval(self, value):
+        self.record.interval_us = value
+        self.ui.RecordIntervalValue.setValue(self.record.interval_us)
+        self.set_field_limit_values()
+
+    def channel_tc_type_changed(self, channel):
+        channel_index = channel - 1
+        widget = self.form.findChild(QComboBox, f"ChannelTcType_{channel}")
+        self.record.channels[channel_index].tc_type = widget.currentText()
+
+    def data_filter_order_changed(self, channel):
+        channel_index = channel - 1
+        widget = self.form.findChild(QSpinBox, f"DataLowPassOrder_{channel}")
+        self.record.channels[channel_index].data_filter_order = widget.value()
+
+    def data_filter_frequency_changed(self, channel):
+        channel_index = channel - 1
+        widget = self.form.findChild(QDoubleSpinBox, f"DataLowPassCornerFrequency_{channel}")
+        self.record.channels[channel_index].data_filter_freq_khz = widget.value()
+
+    def prediction_time_constant_changed(self, channel):
+        channel_index = channel - 1
+        widget = self.form.findChild(QDoubleSpinBox, f"PredictionTimeConstant_{channel}")
+        self.record.channels[channel_index].prediction_time_constant_ms = widget.value()
+
+    def prediction_queue_length_changed(self, channel):
+        channel_index = channel - 1
+        widget = self.form.findChild(QSpinBox, f"PredictionQueueLength_{channel}")
+        self.record.channels[channel_index].prediction_queue_length = widget.value()
+
+    def prediction_filter_order_changed(self, channel):
+        channel_index = channel - 1
+        widget = self.form.findChild(QSpinBox, f"PostProcessLowPassOrder_{channel}")
+        self.record.channels[channel_index].post_process_filter_order = widget.value()
+
+    def prediction_filter_frequency_changed(self, channel):
+        channel_index = channel - 1
+        widget = self.form.findChild(QDoubleSpinBox, f"PostProcessLowPassCornerFrequency_{channel}")
+        self.record.channels[channel_index].post_process_filter_freq_khz = widget.value()
+
 
     def assign_button_functions(self):
         self.ui.ConnectionButton.clicked.connect(self.vcp_connection_change)
@@ -163,12 +216,42 @@ class MainWindowLogic:
         self.ui.PostProcessLowPassEnabled_2.clicked.connect(lambda: self.toggle_prediction_processing(2))
         self.ui.PostProcessLowPassEnabled_3.clicked.connect(lambda: self.toggle_prediction_processing(3))
         self.ui.PostProcessLowPassEnabled_4.clicked.connect(lambda: self.toggle_prediction_processing(4))
-        record_length_widget = self.ui.RecordLengthValue
-        self.ui.RecordLengthMinButton.clicked.connect(lambda: record_length_widget.setValue(self.record_length_min_max["min"]))
-        self.ui.RecordLengthMaxButton.clicked.connect(lambda: record_length_widget.setValue(self.record_length_min_max["max"]))
-        record_interval_widget = self.ui.RecordIntervalValue
-        self.ui.RecordIntervalMinButton.clicked.connect(lambda: record_interval_widget.setValue(self.record_interval_min_max["min"]))
-        self.ui.RecordIntervalMaxButton.clicked.connect(lambda: record_interval_widget.setValue(self.record_interval_min_max["max"]))
+        self.ui.RecordLengthMinButton.clicked.connect(lambda: self.set_record_length(self.record_length_ms_min_max["min"]))
+        self.ui.RecordLengthMaxButton.clicked.connect(lambda: self.set_record_length(self.record_length_ms_min_max["max"]))
+        self.ui.RecordIntervalMinButton.clicked.connect(lambda: self.set_record_interval(self.record_interval_us_min_max["min"]))
+        self.ui.RecordIntervalMaxButton.clicked.connect(lambda: self.set_record_interval(self.record_interval_us_min_max["max"]))
+
+        self.ui.ChannelTcType_1.currentTextChanged.connect(lambda: self.channel_tc_type_changed(1))
+        self.ui.ChannelTcType_2.currentTextChanged.connect(lambda: self.channel_tc_type_changed(2))
+        self.ui.ChannelTcType_3.currentTextChanged.connect(lambda: self.channel_tc_type_changed(3))
+        self.ui.ChannelTcType_4.currentTextChanged.connect(lambda: self.channel_tc_type_changed(4))
+        self.ui.DataLowPassOrder_1.valueChanged.connect(lambda: self.data_filter_order_changed(1))
+        self.ui.DataLowPassOrder_2.valueChanged.connect(lambda: self.data_filter_order_changed(2))
+        self.ui.DataLowPassOrder_3.valueChanged.connect(lambda: self.data_filter_order_changed(3))
+        self.ui.DataLowPassOrder_4.valueChanged.connect(lambda: self.data_filter_order_changed(4))
+        self.ui.DataLowPassCornerFrequency_1.valueChanged.connect(lambda: self.data_filter_frequency_changed(1))
+        self.ui.DataLowPassCornerFrequency_2.valueChanged.connect(lambda: self.data_filter_frequency_changed(2))
+        self.ui.DataLowPassCornerFrequency_3.valueChanged.connect(lambda: self.data_filter_frequency_changed(3))
+        self.ui.DataLowPassCornerFrequency_4.valueChanged.connect(lambda: self.data_filter_frequency_changed(4))
+        self.ui.PredictionTimeConstant_1.valueChanged.connect(lambda: self.prediction_time_constant_changed(1))
+        self.ui.PredictionTimeConstant_2.valueChanged.connect(lambda: self.prediction_time_constant_changed(2))
+        self.ui.PredictionTimeConstant_3.valueChanged.connect(lambda: self.prediction_time_constant_changed(3))
+        self.ui.PredictionTimeConstant_4.valueChanged.connect(lambda: self.prediction_time_constant_changed(4))
+        self.ui.PredictionQueueLength_1.valueChanged.connect(lambda: self.prediction_queue_length_changed(1))
+        self.ui.PredictionQueueLength_2.valueChanged.connect(lambda: self.prediction_queue_length_changed(2))
+        self.ui.PredictionQueueLength_3.valueChanged.connect(lambda: self.prediction_queue_length_changed(3))
+        self.ui.PredictionQueueLength_4.valueChanged.connect(lambda: self.prediction_queue_length_changed(4))
+        self.ui.PostProcessLowPassOrder_1.valueChanged.connect(lambda: self.prediction_filter_order_changed(1))
+        self.ui.PostProcessLowPassOrder_2.valueChanged.connect(lambda: self.prediction_filter_order_changed(2))
+        self.ui.PostProcessLowPassOrder_3.valueChanged.connect(lambda: self.prediction_filter_order_changed(3))
+        self.ui.PostProcessLowPassOrder_4.valueChanged.connect(lambda: self.prediction_filter_order_changed(4))
+        self.ui.PostProcessLowPassCornerFrequency_1.valueChanged.connect(lambda: self.prediction_filter_frequency_changed(1))
+        self.ui.PostProcessLowPassCornerFrequency_2.valueChanged.connect(lambda: self.prediction_filter_frequency_changed(2))
+        self.ui.PostProcessLowPassCornerFrequency_3.valueChanged.connect(lambda: self.prediction_filter_frequency_changed(3))
+        self.ui.PostProcessLowPassCornerFrequency_4.valueChanged.connect(lambda: self.prediction_filter_frequency_changed(4))
+
+        self.ui.RecordLengthValue.editingFinished.connect(self.record_length_changed)
+        self.ui.RecordIntervalValue.editingFinished.connect(self.record_interval_changed)
 
         self.ui.ViewRecordButton.clicked.connect(self.view_selected_record)
         self.ui.RenameRecordButton.clicked.connect(self.rename_selected_record)
@@ -188,6 +271,17 @@ class MainWindowLogic:
     def measure(self):
         self.form.setEnabled(False)
 
+        enabled_channels = list(x.available for x in self.record.channels).count(True)
+        if not enabled_channels:
+            messagebox = QMessageBox(QMessageBox.Critical,
+                                     "Measurement error",
+                                     "Please enable at least one channel",
+                                     QMessageBox.Ok)
+            messagebox.exec()
+            self.form.setEnabled(True)
+
+            return
+
         number_of_steps = 3
         progress_dialog = QProgressDialog("Preparing...", "Cancel", 0, number_of_steps + 1, self.form)
         progress_dialog.overrideWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
@@ -203,9 +297,9 @@ class MainWindowLogic:
         progress_dialog.setLabelText("Receiving data from MCU...")
         progress_dialog.setValue(2)
         self.measurement_receive_data()
-        progress_dialog.setLabelText("Processing received data...")
+        progress_dialog.setLabelText("Saving record...")
         progress_dialog.setValue(3)
-        self.measurement_process_data()
+        self.measurement_save_record()
         progress_dialog.setLabelText("Done")
         progress_dialog.setValue(4)
 
@@ -216,23 +310,29 @@ class MainWindowLogic:
     def measurement_send_setup(self):
         # Send UI settings to MCU
         loop = QEventLoop()
-        QTimer.singleShot(1000, loop.quit)
+        QTimer.singleShot(1, loop.quit)
         loop.exec_()
         return
 
     def measurement_receive_data(self):
         # Receive data from MCU
         loop = QEventLoop()
-        QTimer.singleShot(1000, loop.quit)
+        QTimer.singleShot(1, loop.quit)
         loop.exec_()
         return
 
-    def measurement_process_data(self):
-        # Process and save received data
-        loop = QEventLoop()
-        QTimer.singleShot(1000, loop.quit)
-        loop.exec_()
-        return
+    def measurement_save_record(self):
+        # Save received data
+        time_now_formatted = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        record_file_name = time_now_formatted + ".json"
+
+        jsonpickle.set_encoder_options('json', indent=4)
+        output_json = jsonpickle.encode(self.record)
+
+        with open(str(SharedParameters.record_folder_dir + record_file_name), "w") as output_file:
+            output_file.writelines(output_json)
+
+        self.display_available_records()
 
     def display_available_records(self):
         self.ui.RecordsList.clear()
@@ -287,6 +387,13 @@ class MainWindowLogic:
 
         os.remove(str(SharedParameters.record_folder_dir + selected_record_name + ".json"))
         self.display_available_records()
+
+    def set_field_limit_values(self):
+        max_filter_frequency_khz = (1.0 / (self.record.interval_us / 10**3)) / 2 - 0.001
+        filter_field_names = QRegularExpression(r".*Frequency.*")
+        filter_field_widgets = self.form.findChildren(QDoubleSpinBox, filter_field_names)
+        for widget in filter_field_widgets:
+            widget.setMaximum(max_filter_frequency_khz)
 
 
 if __name__ == "__main__":

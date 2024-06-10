@@ -1,10 +1,13 @@
 {
-  "record_interval_us": 10,
-  "record_length_ms": 1,
-  "channel_data": {
-    "channel_1": {
-      "tc_type": "J",
-      "raw_data": [  1       ,   1.04761575,   1.09749877,   1.149757  ,
+    "py/object": "PC.Record.Record",
+    "length_ms": 1,
+    "interval_us": 10,
+    "num_of_channels": 4,
+    "channels": [
+        {
+            "py/object": "PC.Channel.Channel",
+            "available": true,
+            "raw_data": [  1       ,   1.04761575,   1.09749877,   1.149757  ,
                    1.20450354,   1.26185688,   1.32194115,   1.38488637,
                    1.45082878,   1.51991108,   1.59228279,   1.66810054,
                    1.7475284 ,   1.83073828,   1.91791026,   2.009233  ,
@@ -29,25 +32,21 @@
                   59.94842503,  62.80291442,  65.79332247,  68.92612104,
                   72.20809018,  75.64633276,  79.24828984,  83.02175681,
                   86.97490026,  91.11627561,  95.45484567, 100        ],
-      "data_processing": {
-        "enabled": true,
-        "filter_order": 3,
-        "filter_corner_frequency_khz": 10.0
-      },
-      "temperature_prediction": {
-        "enabled": true,
-        "time_constant_ms": 150.0,
-        "record_queue_length": 11
-      },
-      "prediction_processing": {
-        "enabled": false,
-        "filter_order": 6,
-        "filter_corner_frequency_khz": 1000.0
-      }
-    },
-    "channel_2": {
-      "tc_type": "T",
-      "raw_data": [ 1         ,  1.04518199,  1.0924054 ,  1.14176245,  1.19334956,
+            "tc_type": "T",
+            "data_processing_enabled": true,
+            "data_filter_order": 2,
+            "data_filter_freq_khz": 10.0,
+            "temperature_prediction_enabled": false,
+            "prediction_time_constant_ms": 100.0,
+            "prediction_queue_length": 10,
+            "prediction_processing_enabled": false,
+            "post_process_filter_order": 3,
+            "post_process_filter_freq_khz": 10.0
+        },
+        {
+            "py/object": "PC.Channel.Channel",
+            "available": true,
+            "raw_data": [ 1         ,  1.04518199,  1.0924054 ,  1.14176245,  1.19334956,
                     1.24726747,  1.3036215 ,  1.36252172,  1.42408317,  1.48842609,
                     1.55567614,  1.62596469,  1.69942902,  1.77621261,  1.85646544,
                     1.94034425,  2.02801287,  2.11964254,  2.21541221,  2.31550895,
@@ -67,60 +66,46 @@
                    42.78712751, 44.72033524, 46.74088915, 48.85273572, 51.05999972,
                    53.36699231, 55.77821943, 58.2983906 , 60.93242812, 63.68547671,
                    66.56291353, 69.57035868, 72.7136862 , 75.99903552, 79.43282347],
-      "data_processing": {
-        "enabled": true,
-        "filter_order": 10,
-        "filter_corner_frequency_khz": 30.0
-      },
-      "temperature_prediction": {
-        "enabled": false,
-        "time_constant_ms": 100.0,
-        "record_queue_length": 10
-      },
-      "prediction_processing": {
-        "enabled": false,
-        "filter_order": 3,
-        "filter_corner_frequency_khz": 300.0
-      }
-    },
-    "channel_3": null,
-    "channel_4": {
-      "tc_type": "K",
-      "raw_data": [ 1         ,  1.04275389,  1.08733567,  1.1338235 ,  1.18229887,
-                    1.23284674,  1.28555573,  1.34051824,  1.39783061,  1.4575933 ,
-                    1.51991108,  1.58489319,  1.65265354,  1.72331091,  1.79698915,
-                    1.87381742,  1.9539304 ,  2.03746853,  2.12457823,  2.21541221,
-                    2.3101297 ,  2.40889673,  2.51188643,  2.61927934,  2.73126372,
-                    2.84803587,  2.96980048,  3.096771  ,  3.22917   ,  3.36722958,
-                    3.51119173,  3.66130884,  3.81784403,  3.98107171,  4.151278  ,
-                    4.32876128,  4.51383266,  4.70681656,  4.90805127,  5.11788955,
-                    5.33669923,  5.56486388,  5.80278345,  6.05087501,  6.30957344,
-                    6.57933225,  6.86062429,  7.15394265,  7.45980152,  7.77873705,
-                    8.11130831,  8.45809828,  8.81971488,  9.19679199,  9.58999061,
-                   10        , 10.42753889, 10.87335673, 11.33823501, 11.82298865,
-                   12.32846739, 12.85555732, 13.40518239, 13.97830607, 14.57593301,
-                   15.19911083, 15.84893192, 16.5265354 , 17.23310906, 17.96989149,
-                   18.73817423, 19.53930405, 20.37468528, 21.24578231, 22.15412213,
-                   23.101297  , 24.08896729, 25.11886432, 26.19279345, 27.31263723,
-                   28.48035868, 29.69800477, 30.96770997, 32.2917    , 33.67229575,
-                   35.11191734, 36.61308835, 38.17844026, 39.81071706, 41.51278003,
-                   43.28761281, 45.1383266 , 47.0681656 , 49.08051272, 51.1788955 ,
-                   53.36699231, 55.64863877, 58.02783449, 60.50875007, 63.09573445],
-      "data_processing": {
-        "enabled": false,
-        "filter_order": 3,
-        "filter_corner_frequency_khz": 300.0
-      },
-      "temperature_prediction": {
-        "enabled": false,
-        "time_constant_ms": 100.0,
-        "record_queue_length": 10
-      },
-      "prediction_processing": {
-        "enabled": false,
-        "filter_order": 5,
-        "filter_corner_frequency_khz": 500.0
-      }
-    }
-  }
+            "tc_type": "J",
+            "data_processing_enabled": false,
+            "data_filter_order": 3,
+            "data_filter_freq_khz": 10.0,
+            "temperature_prediction_enabled": true,
+            "prediction_time_constant_ms": 100.0,
+            "prediction_queue_length": 10,
+            "prediction_processing_enabled": true,
+            "post_process_filter_order": 4,
+            "post_process_filter_freq_khz": 10.0
+        },
+        {
+            "py/object": "PC.Channel.Channel",
+            "available": false,
+            "raw_data": null,
+            "tc_type": "J",
+            "data_processing_enabled": false,
+            "data_filter_order": 3,
+            "data_filter_freq_khz": 10.0,
+            "temperature_prediction_enabled": false,
+            "prediction_time_constant_ms": 100.0,
+            "prediction_queue_length": 10,
+            "prediction_processing_enabled": false,
+            "post_process_filter_order": 3,
+            "post_process_filter_freq_khz": 10.0
+        },
+        {
+            "py/object": "PC.Channel.Channel",
+            "available": false,
+            "raw_data": null,
+            "tc_type": "J",
+            "data_processing_enabled": false,
+            "data_filter_order": 3,
+            "data_filter_freq_khz": 10.0,
+            "temperature_prediction_enabled": false,
+            "prediction_time_constant_ms": 100.0,
+            "prediction_queue_length": 10,
+            "prediction_processing_enabled": false,
+            "post_process_filter_order": 3,
+            "post_process_filter_freq_khz": 10.0
+        }
+    ]
 }

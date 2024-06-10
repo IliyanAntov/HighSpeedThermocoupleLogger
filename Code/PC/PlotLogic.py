@@ -4,6 +4,7 @@ import math
 import sys
 from functools import partial
 
+import jsonpickle
 import numpy as np
 from scipy import signal
 
@@ -33,6 +34,7 @@ class PlotLogic:
         self.ui.setupUi(self.form)
 
         self.record_file_name = record_file_name
+        self.form.setWindowTitle(self.record_file_name.replace(".json", ""))
         self.load_data()
 
         self.update_enabled_widgets()
@@ -54,8 +56,10 @@ class PlotLogic:
                 widget.setEnabled(False)
 
         self.ui.ViewPlotButton.setEnabled(True)
+        self.ui.RecordLengthValue.setValue(self.record.length_ms)
+        self.ui.RecordIntervalValue.setValue(self.record.interval_us)
 
-        for i in range(4):
+        for i in range(self.record.num_of_channels):
             channel_enable_checkbox_widget = self.form.findChild(QCheckBox, f"ChannelEnabled_{i + 1}")
             channel_enable_checkbox_widget.setEnabled(True)
             channel_enable_checkbox_widget.setChecked(self.record.channels[i].available)
@@ -193,80 +197,45 @@ class PlotLogic:
         self.ui.PostProcessLowPassEnabled_3.clicked.connect(lambda: self.toggle_prediction_processing(3))
         self.ui.PostProcessLowPassEnabled_4.clicked.connect(lambda: self.toggle_prediction_processing(4))
 
-        self.ui.DataLowPassOrder_1.editingFinished.connect(lambda: self.data_filter_order_changed(1))
-        self.ui.DataLowPassOrder_2.editingFinished.connect(lambda: self.data_filter_order_changed(2))
-        self.ui.DataLowPassOrder_3.editingFinished.connect(lambda: self.data_filter_order_changed(3))
-        self.ui.DataLowPassOrder_4.editingFinished.connect(lambda: self.data_filter_order_changed(4))
-        self.ui.DataLowPassCornerFrequency_1.editingFinished.connect(lambda: self.data_filter_frequency_changed(1))
-        self.ui.DataLowPassCornerFrequency_2.editingFinished.connect(lambda: self.data_filter_frequency_changed(2))
-        self.ui.DataLowPassCornerFrequency_3.editingFinished.connect(lambda: self.data_filter_frequency_changed(3))
-        self.ui.DataLowPassCornerFrequency_4.editingFinished.connect(lambda: self.data_filter_frequency_changed(4))
-        self.ui.PredictionTimeConstant_1.editingFinished.connect(lambda: self.prediction_time_constant_changed(1))
-        self.ui.PredictionTimeConstant_2.editingFinished.connect(lambda: self.prediction_time_constant_changed(2))
-        self.ui.PredictionTimeConstant_3.editingFinished.connect(lambda: self.prediction_time_constant_changed(3))
-        self.ui.PredictionTimeConstant_4.editingFinished.connect(lambda: self.prediction_time_constant_changed(4))
-        self.ui.PredictionQueueLength_1.editingFinished.connect(lambda: self.prediction_queue_length_changed(1))
-        self.ui.PredictionQueueLength_2.editingFinished.connect(lambda: self.prediction_queue_length_changed(2))
-        self.ui.PredictionQueueLength_3.editingFinished.connect(lambda: self.prediction_queue_length_changed(3))
-        self.ui.PredictionQueueLength_4.editingFinished.connect(lambda: self.prediction_queue_length_changed(4))
-        self.ui.PostProcessLowPassOrder_1.editingFinished.connect(lambda: self.prediction_filter_order_changed(1))
-        self.ui.PostProcessLowPassOrder_2.editingFinished.connect(lambda: self.prediction_filter_order_changed(2))
-        self.ui.PostProcessLowPassOrder_3.editingFinished.connect(lambda: self.prediction_filter_order_changed(3))
-        self.ui.PostProcessLowPassOrder_4.editingFinished.connect(lambda: self.prediction_filter_order_changed(4))
-        self.ui.PostProcessLowPassCornerFrequency_1.editingFinished.connect(lambda: self.prediction_filter_frequency_changed(1))
-        self.ui.PostProcessLowPassCornerFrequency_2.editingFinished.connect(lambda: self.prediction_filter_frequency_changed(2))
-        self.ui.PostProcessLowPassCornerFrequency_3.editingFinished.connect(lambda: self.prediction_filter_frequency_changed(3))
-        self.ui.PostProcessLowPassCornerFrequency_4.editingFinished.connect(lambda: self.prediction_filter_frequency_changed(4))
+        self.ui.DataLowPassOrder_1.valueChanged.connect(lambda: self.data_filter_order_changed(1))
+        self.ui.DataLowPassOrder_2.valueChanged.connect(lambda: self.data_filter_order_changed(2))
+        self.ui.DataLowPassOrder_3.valueChanged.connect(lambda: self.data_filter_order_changed(3))
+        self.ui.DataLowPassOrder_4.valueChanged.connect(lambda: self.data_filter_order_changed(4))
+        self.ui.DataLowPassCornerFrequency_1.valueChanged.connect(lambda: self.data_filter_frequency_changed(1))
+        self.ui.DataLowPassCornerFrequency_2.valueChanged.connect(lambda: self.data_filter_frequency_changed(2))
+        self.ui.DataLowPassCornerFrequency_3.valueChanged.connect(lambda: self.data_filter_frequency_changed(3))
+        self.ui.DataLowPassCornerFrequency_4.valueChanged.connect(lambda: self.data_filter_frequency_changed(4))
+        self.ui.PredictionTimeConstant_1.valueChanged.connect(lambda: self.prediction_time_constant_changed(1))
+        self.ui.PredictionTimeConstant_2.valueChanged.connect(lambda: self.prediction_time_constant_changed(2))
+        self.ui.PredictionTimeConstant_3.valueChanged.connect(lambda: self.prediction_time_constant_changed(3))
+        self.ui.PredictionTimeConstant_4.valueChanged.connect(lambda: self.prediction_time_constant_changed(4))
+        self.ui.PredictionQueueLength_1.valueChanged.connect(lambda: self.prediction_queue_length_changed(1))
+        self.ui.PredictionQueueLength_2.valueChanged.connect(lambda: self.prediction_queue_length_changed(2))
+        self.ui.PredictionQueueLength_3.valueChanged.connect(lambda: self.prediction_queue_length_changed(3))
+        self.ui.PredictionQueueLength_4.valueChanged.connect(lambda: self.prediction_queue_length_changed(4))
+        self.ui.PostProcessLowPassOrder_1.valueChanged.connect(lambda: self.prediction_filter_order_changed(1))
+        self.ui.PostProcessLowPassOrder_2.valueChanged.connect(lambda: self.prediction_filter_order_changed(2))
+        self.ui.PostProcessLowPassOrder_3.valueChanged.connect(lambda: self.prediction_filter_order_changed(3))
+        self.ui.PostProcessLowPassOrder_4.valueChanged.connect(lambda: self.prediction_filter_order_changed(4))
+        self.ui.PostProcessLowPassCornerFrequency_1.valueChanged.connect(lambda: self.prediction_filter_frequency_changed(1))
+        self.ui.PostProcessLowPassCornerFrequency_2.valueChanged.connect(lambda: self.prediction_filter_frequency_changed(2))
+        self.ui.PostProcessLowPassCornerFrequency_3.valueChanged.connect(lambda: self.prediction_filter_frequency_changed(3))
+        self.ui.PostProcessLowPassCornerFrequency_4.valueChanged.connect(lambda: self.prediction_filter_frequency_changed(4))
 
         self.ui.ViewPlotButton.clicked.connect(self.plot)
         self.ui.ApplyButton.clicked.connect(self.update_parameters)
         self.ui.CancelButton.clicked.connect(self.restore_saved_parameters)
 
     def load_data(self):
-        with open(SharedParameters.record_folder_dir + self.record_file_name) as file:
-            file_json = json.load(file)
-
-        self.record.interval_us = file_json["record_interval_us"]
-        self.record.length_ms = file_json["record_length_ms"]
-        record_length_widget = self.form.findChild(QSpinBox, "RecordLengthValue")
-        record_length_widget.setValue(self.record.length_ms)
-        record_interval_widget = self.form.findChild(QSpinBox, f"RecordIntervalValue")
-        record_interval_widget.setValue(self.record.interval_us)
-
-        channel_index = 0
-        channel_names = file_json["channel_data"]
-        for channel_name in channel_names:
-            channel_data_json = copy.deepcopy(file_json["channel_data"][channel_name])
-
-            if channel_data_json is None:
-                self.record.channels[channel_index].available = False
-                channel_index += 1
-                continue
-
-            self.record.channels[channel_index].tc_type = channel_data_json["tc_type"]
-            self.record.channels[channel_index].raw_data = channel_data_json["raw_data"]
-
-            # Data processing
-            self.record.channels[channel_index].data_processing_enabled = channel_data_json["data_processing"]["enabled"]
-            self.record.channels[channel_index].data_filter_order = channel_data_json["data_processing"]["filter_order"]
-            self.record.channels[channel_index].data_filter_freq_khz = channel_data_json["data_processing"]["filter_corner_frequency_khz"]
-
-            # Temperature prediction
-            self.record.channels[channel_index].temperature_prediction_enabled = channel_data_json["temperature_prediction"]["enabled"]
-            self.record.channels[channel_index].prediction_time_constant_ms = channel_data_json["temperature_prediction"]["time_constant_ms"]
-            self.record.channels[channel_index].prediction_queue_length = channel_data_json["temperature_prediction"]["record_queue_length"]
-
-            # Prediction processing
-            self.record.channels[channel_index].prediction_processing_enabled = channel_data_json["prediction_processing"]["enabled"]
-            self.record.channels[channel_index].post_process_filter_order = channel_data_json["prediction_processing"]["filter_order"]
-            self.record.channels[channel_index].post_process_filter_freq_khz = channel_data_json["prediction_processing"]["filter_corner_frequency_khz"]
-
-            self.display_saved_parameter_values(channel_index)
-            self.update_channel_widgets_enable_status(channel_index + 1)
-            channel_index += 1
+        with open(SharedParameters.record_folder_dir + self.record_file_name) as record_file:
+            file_raw = record_file.read()
+            self.record = jsonpickle.decode(file_raw)
 
         for i in range(self.record.num_of_channels):
             self.available_channel_records.append(self.record.channels[i].available)
+            self.display_saved_parameter_values(i)
+
+        self.record_saved = copy.deepcopy(self.record)
 
     def display_saved_parameter_values(self, channel_index):
         channel_enabled_widget = self.form.findChild(QCheckBox, f"ChannelEnabled_{channel_index+1}")
@@ -317,6 +286,16 @@ class PlotLogic:
     def plot(self):
         self.restore_saved_parameters()
 
+        enabled_channels = list(x.available for x in self.record.channels).count(True)
+        if not enabled_channels:
+            messagebox = QMessageBox(QMessageBox.Critical,
+                                     "Measurement error",
+                                     "Please enable at least one channel",
+                                     QMessageBox.Ok)
+            messagebox.exec()
+            self.form.setEnabled(True)
+            return
+
         channel_colors = ["red", "blue", "green", "orange"]
         x_values = np.linspace(0, self.record.length_ms, int(self.record.length_ms/(self.record.interval_us/1000)))
         y_max = None
@@ -366,6 +345,8 @@ class PlotLogic:
         plt.xticks(np.linspace(0, self.record.length_ms, 11))
         plt.ylabel("Temperature [°C]")
         y_ticks = math.ceil(y_max / 10.0)
+        if y_ticks > 20:
+            y_ticks = 20
         plt.yticks(np.linspace(0, y_ticks * 10, y_ticks + 1))
         plt.legend()
         plt.grid()
@@ -411,4 +392,4 @@ class PlotLogic:
 # TODO: delete
 # if __name__ == "__main__":
 #     plot_window = PlotLogic()
-#     plot_window.run("11-30-00_06-06-2024.json")
+#     plot_window.run("sample.json")
