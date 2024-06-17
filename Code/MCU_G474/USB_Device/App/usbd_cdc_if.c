@@ -22,7 +22,7 @@
 #include "usbd_cdc_if.h"
 
 /* USER CODE BEGIN INCLUDE */
-
+#include "main.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,7 +49,8 @@
   */
 
 /* USER CODE BEGIN PRIVATE_TYPES */
-
+extern uint8_t rx_buffer[USB_RX_BUFFER_SIZE];
+extern enum CONV_STATE conv_state;
 /* USER CODE END PRIVATE_TYPES */
 
 /**
@@ -263,7 +264,16 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   /* USER CODE BEGIN 6 */
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+
+  memset (rx_buffer, '\0', USB_RX_BUFFER_SIZE);  // clear the buffer
+  uint8_t len = (uint8_t)*Len;
+  memcpy(rx_buffer, Buf, len);  // copy the data to the buffer
+  memset(Buf, '\0', len);   // clear the Buf also
+
+  conv_state = CFG_RECEIVED;
   return (USBD_OK);
+
+
   /* USER CODE END 6 */
 }
 

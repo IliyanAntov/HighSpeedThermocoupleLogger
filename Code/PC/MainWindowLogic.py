@@ -4,6 +4,8 @@ import time
 from datetime import datetime
 
 import jsonpickle as jsonpickle
+import serial
+import serial.tools.list_ports
 from PyQt5.QtCore import QRegularExpression, Qt, QSize, QEventLoop, QTimer, pyqtSignal, QObject
 from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import *
@@ -23,6 +25,7 @@ class MainWindowLogic:
         self.app = QtWidgets.QApplication(sys.argv)
         self.form = QtWidgets.QWidget()
         self.record = Record(number_of_channels=4)
+        self.serial = None
         self.connection_established = False
 
         self.record_length_ms_min_max = {
@@ -259,14 +262,43 @@ class MainWindowLogic:
 
     def vcp_connection_change(self):
         if self.connection_established:
+            self.vcp_disconnect()
             self.connection_established = False
             self.ui.ConnectionButton.setText("Connect")
-            # self.vcp_disconnect()
         else:
-            self.connection_established = True
-            self.ui.ConnectionButton.setText("Disconnect")
+            self.connection_established = self.vcp_connect()
+            if not self.connection_established:
+                messagebox = QMessageBox(QMessageBox.Critical,
+                                         "Connection error",
+                                         "No connected logger found!",
+                                         QMessageBox.Ok)
+                messagebox.exec()
+            else:
+                self.ui.ConnectionButton.setText("Disconnect")
+
             # self.vcp_connect()
         self.update_enabled_widgets()
+
+    def vcp_connect(self):
+        ports = serial.tools.list_ports.comports()
+        for port, desc, hwid in sorted(ports):
+            hwid_split = hwid.split(" ")
+            if hwid_split[0] != "USB":
+                continue
+            vid_pid = hwid_split[1]
+            vid_pid_split = vid_pid.replace("=", ":").split(":")
+            vid = int(vid_pid_split[2], 16)
+            pid = int(vid_pid_split[3], 16)
+
+            if vid == SharedParameters.device_vid and pid == SharedParameters.device_pid:
+                self.serial = serial.Serial(port=port, baudrate=115200, timeout=None)
+                return True
+
+        return False
+
+    def vcp_disconnect(self):
+        self.serial.close()
+        return
 
     def measure(self):
         self.form.setEnabled(False)
@@ -299,7 +331,8 @@ class MainWindowLogic:
         self.measurement_receive_data()
         progress_dialog.setLabelText("Saving record...")
         progress_dialog.setValue(3)
-        self.measurement_save_record()
+        # TODO: remove this comment
+        # self.measurement_save_record()
         progress_dialog.setLabelText("Done")
         progress_dialog.setValue(4)
 
@@ -309,16 +342,29 @@ class MainWindowLogic:
 
     def measurement_send_setup(self):
         # Send UI settings to MCU
-        loop = QEventLoop()
-        QTimer.singleShot(1, loop.quit)
-        loop.exec_()
+        setup_string = ""
+        setup_string += f"RecLen:{str(self.record.length_ms)};"
+        setup_string += f"RecInt:{str(self.record.interval_us)};"
+        tc_sensitivity_ranking = ["E", "J", "K", "T"]
+        highest_sensitivity_tc_available = "T"
+        for channel in self.record.channels:
+            if not channel.available:
+                continue
+            if tc_sensitivity_ranking.index(channel.tc_type) < tc_sensitivity_ranking.index(highest_sensitivity_tc_available):
+                highest_sensitivity_tc_available = channel.tc_type
+
+        setup_string += f"TcType:{highest_sensitivity_tc_available};"
+        enabled_channels_list = str([int(x.available) for x in self.record.channels])
+        setup_string += "EnChan:{};".format(enabled_channels_list.replace(" ", ""))
+        setup_string += "\0"
+        self.serial.write(setup_string.encode())
+        print(setup_string)
+
         return
 
     def measurement_receive_data(self):
         # Receive data from MCU
-        loop = QEventLoop()
-        QTimer.singleShot(1, loop.quit)
-        loop.exec_()
+
         return
 
     def measurement_save_record(self):

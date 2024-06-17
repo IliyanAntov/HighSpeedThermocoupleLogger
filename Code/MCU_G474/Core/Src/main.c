@@ -24,6 +24,8 @@
 /* USER CODE BEGIN Includes */
 #include "usbd_cdc_if.h"
 #include "stm32g4xx_ll_usb.h"
+#include <string.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -33,10 +35,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define USED_ADC_COUNT 4
-#define ADC_BUFFER_SIZE 2000													// uint16
-#define USB_HEADER_SIZE 20														// uint8
-#define USB_BUFFER_SIZE USB_HEADER_SIZE + (ADC_BUFFER_SIZE * USED_ADC_COUNT) 	// uint8
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -59,15 +58,19 @@ UART_HandleTypeDef hlpuart1;
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
-uint16_t adc_buffers[USED_ADC_COUNT][ADC_BUFFER_SIZE];
+uint16_t adc_buffers[MAX_CHANNEL_COUNT][ADC_BUFFER_SIZE];
+int8_t rx_buffer[USB_RX_BUFFER_SIZE];
 
-enum ADC_STATE {
-  IDLE,
-  WAITING_START,
-  WAITING_END
-};
+volatile enum CONV_STATE conv_state = IDLE;
+volatile int conv_done = 0;
+volatile int target_conv_count = 0;
+volatile int conv_count = 0;
+enum TRIG_SOURCE trig_source = TRIG_SHORT;
 
-volatile enum ADC_STATE adc_conv_state = IDLE;
+uint16_t record_length_ms = 100;
+uint16_t record_interval_us = 10;
+char tc_type = 'J';
+uint8_t channel_enabled[MAX_CHANNEL_COUNT] = {0, 0, 0, 0};
 
 /* USER CODE END PV */
 
@@ -82,7 +85,10 @@ static void MX_ADC3_Init(void);
 static void MX_ADC4_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
-
+int InterpretConfig(void);
+int InterpretVariable(char name[CFG_VAR_SIZE], char value[CFG_VAR_SIZE]);
+int SetupMeasurement(void);
+int TakeMeasurement(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -127,70 +133,47 @@ int main(void)
   MX_TIM2_Init();
   MX_USB_Device_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start_IT(&htim2);
-  HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers[0], ADC_BUFFER_SIZE);
-  if(USED_ADC_COUNT > 1){
-	  HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
-	  HAL_ADC_Start_DMA(&hadc2, (uint32_t*)adc_buffers[1], ADC_BUFFER_SIZE);
-  }
-  if(USED_ADC_COUNT > 2){
-	  HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED);
-	  HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc_buffers[2], ADC_BUFFER_SIZE);
-  }
-  if(USED_ADC_COUNT > 3){
- 	  HAL_ADCEx_Calibration_Start(&hadc4, ADC_SINGLE_ENDED);
- 	  HAL_ADC_Start_DMA(&hadc4, (uint32_t*)adc_buffers[3], ADC_BUFFER_SIZE);
-   }
+//  HAL_TIM_Base_Start_IT(&htim2); // Record length timer
+//  HAL_TIM_Base_Start_IT(&htim3); // Record interval timer
+
+//  HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
+//  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers[0], ADC_BUFFER_SIZE);
+//  if(MAX_CHANNEL_COUNT > 1){
+//	  HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
+//	  HAL_ADC_Start_DMA(&hadc2, (uint32_t*)adc_buffers[1], ADC_BUFFER_SIZE);
+//  }
+//  if(MAX_CHANNEL_COUNT > 2){
+//	  HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED);
+//	  HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc_buffers[2], ADC_BUFFER_SIZE);
+//  }
+//  if(MAX_CHANNEL_COUNT > 3){
+// 	  HAL_ADCEx_Calibration_Start(&hadc4, ADC_SINGLE_ENDED);
+// 	  HAL_ADC_Start_DMA(&hadc4, (uint32_t*)adc_buffers[3], ADC_BUFFER_SIZE);
+//   }
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  unsigned char tx_buffer[USB_BUFFER_SIZE];
-
-  uint8_t adc_packet_counter = 0;
 
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	if(adc_conv_state == WAITING_START || adc_conv_state == WAITING_END){
-
-		// Clear header
-		for(int i = 0; i < USB_HEADER_SIZE; i++){
-			tx_buffer[i] = 0;
-		}
-		// Write header
-		sprintf((char *)tx_buffer, "M%.3d;", adc_packet_counter);
-
-		// Determine place in ADC buffer
-		unsigned int adc_buffer_start_index;
-		if(adc_conv_state == WAITING_START)
-			adc_buffer_start_index = 0;
-		else if(adc_conv_state == WAITING_END)
-			adc_buffer_start_index = ADC_BUFFER_SIZE/2;
-
-		// Offset USB tx index by header length
-		unsigned int tx_start_index = USB_HEADER_SIZE;
-
-		// Iterate through all ADCs
-		for(int adc_index = 0; adc_index < USED_ADC_COUNT; adc_index++){
-
-			for(int i = 0; i < ADC_BUFFER_SIZE/2; i++){
-				tx_buffer[tx_start_index + (i*2)+1] = (uint8_t)(adc_buffers[adc_index][adc_buffer_start_index + i] & 0x00FF);
-				tx_buffer[tx_start_index + i*2] = (uint8_t)((adc_buffers[adc_index][adc_buffer_start_index + i] >> 8) & 0x00FF);
-			}
-			tx_start_index += ADC_BUFFER_SIZE;
-		}
-
-		while(CDC_Transmit_FS(tx_buffer, USB_BUFFER_SIZE) != USBD_OK);
-		adc_packet_counter++;
-		adc_conv_state = IDLE;
-
-	}
-
+	  // Wait for instructions
+	  if(conv_state == CFG_RECEIVED){
+		  InterpretConfig();
+	  }
+	  if(conv_state == CFG_INTERPRETED){
+		  SetupMeasurement();
+	  }
+	  if(conv_done){
+		  HAL_TIM_Base_Stop_IT(&htim2);
+		  conv_state = IDLE;
+		  conv_done = 0;
+		  conv_count = 0;
+	  }
 
   }
   /* USER CODE END 3 */
@@ -572,7 +555,6 @@ static void MX_TIM2_Init(void)
   /* USER CODE END TIM2_Init 0 */
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
 
   /* USER CODE BEGIN TIM2_Init 1 */
@@ -590,12 +572,6 @@ static void MX_TIM2_Init(void)
   }
   sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
   if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_DISABLE;
-  sSlaveConfig.InputTrigger = TIM_TS_ITR0;
-  if (HAL_TIM_SlaveConfigSynchro(&htim2, &sSlaveConfig) != HAL_OK)
   {
     Error_Handler();
   }
@@ -699,20 +675,136 @@ static void MX_GPIO_Init(void)
 
 // Called when first half of buffer is filled
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc) {
-	if(adc_conv_state != IDLE){
+	if(conv_state != IDLE){
 		HAL_GPIO_TogglePin(TEST_OUT_GPIO_Port, TEST_OUT_Pin);
 	}
-	adc_conv_state = WAITING_START;
+	conv_state = WAITING_START;
 }
 
 // Called when buffer is completely filled
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
-	if(adc_conv_state != IDLE){
+	if(conv_state != IDLE){
 		HAL_GPIO_TogglePin(TEST_OUT_GPIO_Port, TEST_OUT_Pin);
 	}
-	adc_conv_state = WAITING_END;
+	conv_state = WAITING_END;
 }
 
+int InterpretConfig(void) {
+	char variable_name[CFG_VAR_SIZE];
+	char variable_value[CFG_VAR_SIZE];
+	memset(variable_name, 0, sizeof(variable_name));
+	memset(variable_value, 0, sizeof(variable_value));
+	int variable_name_indexes[2] = {0, 0};
+	int variable_value_indexes[2] = {0, 0};
+	char reading_status = 'n';
+	for(int i = 0; i < USB_RX_BUFFER_SIZE; i++){
+		if(rx_buffer[i] == '\0'){
+			break;
+		}
+		// Reading the variable name
+		if(reading_status == 'n'){
+			if(rx_buffer[i] == ':') {
+				variable_name_indexes[1] = i;
+				variable_value_indexes[0] = i+1;
+				reading_status = 'v';
+			}
+		}
+		// Reading the variable value
+		else if(reading_status == 'v'){
+			if(rx_buffer[i] == ';') {
+				variable_value_indexes[1] = i;
+
+				strncpy(variable_name, ((char*)rx_buffer + variable_name_indexes[0]), (variable_name_indexes[1] - variable_name_indexes[0]));
+				variable_name[variable_name_indexes[1] + 1] = '\0';
+				strncpy(variable_value, ((char*)rx_buffer + variable_value_indexes[0]), (variable_value_indexes[1] - variable_value_indexes[0]));
+				variable_value[variable_value_indexes[1] + 1] = '\0';
+
+				InterpretVariable(variable_name, variable_value);
+				memset(variable_name, 0, sizeof(variable_name));
+				memset(variable_value, 0, sizeof(variable_value));
+				variable_name_indexes[0] = i + 1;
+				reading_status = 'n';
+			}
+		}
+	}
+
+	conv_state = CFG_INTERPRETED;
+	return 1;
+}
+
+int InterpretVariable(char name[CFG_VAR_SIZE], char value[CFG_VAR_SIZE]) {
+	if(strcmp(name, "RecLen") == 0) {
+		record_length_ms = (uint16_t)atoi(value);
+	}
+	else if(strcmp(name, "RecInt") == 0) {
+		record_interval_us = (uint16_t)atoi(value);
+	}
+	else if(strcmp(name, "TcType") == 0) {
+		tc_type = value[0];
+	}
+	else if(strcmp(name, "EnChan") == 0) {
+		int channel_index = 0;
+		for(int i = 1; i < strlen(value); i += 2){
+			channel_enabled[channel_index] = value[i] - '0';
+			channel_index++;
+		}
+	}
+	return 1;
+}
+
+int SetupMeasurement(void){
+	// ADC sync timer
+	target_conv_count = (record_length_ms * 1000) / record_interval_us;
+
+	__HAL_TIM_SET_AUTORELOAD(&htim2, record_interval_us - 1);
+	__HAL_TIM_SET_COUNTER(&htim2, record_interval_us - 1);
+
+	HAL_TIM_Base_Start_IT(&htim2);
+
+	conv_state = ARMED;
+	return 1;
+}
+
+int TakeMeasurement(void) {
+	unsigned char tx_buffer[USB_TX_BUFFER_SIZE];
+
+	uint8_t adc_packet_counter = 0;
+
+	if(conv_state == WAITING_START || conv_state == WAITING_END){
+
+		// Clear header
+		for(int i = 0; i < USB_HEADER_SIZE; i++){
+			tx_buffer[i] = 0;
+		}
+		// Write header
+		sprintf((char *)tx_buffer, "PktNo:%.3d;", adc_packet_counter);
+
+		// Determine place in ADC buffer
+		unsigned int adc_buffer_start_index;
+		if(conv_state == WAITING_START)
+			adc_buffer_start_index = 0;
+		else if(conv_state == WAITING_END)
+			adc_buffer_start_index = ADC_BUFFER_SIZE/2;
+
+		// Offset USB tx buffer index by header length
+		unsigned int tx_start_index = USB_HEADER_SIZE;
+
+		// Iterate through all ADCs
+		for(int adc_index = 0; adc_index < MAX_CHANNEL_COUNT; adc_index++){
+
+			for(int i = 0; i < ADC_BUFFER_SIZE/2; i++){
+				tx_buffer[tx_start_index + (i*2)+1] = (uint8_t)(adc_buffers[adc_index][adc_buffer_start_index + i] & 0x00FF);
+				tx_buffer[tx_start_index + i*2] = (uint8_t)((adc_buffers[adc_index][adc_buffer_start_index + i] >> 8) & 0x00FF);
+			}
+			tx_start_index += ADC_BUFFER_SIZE;
+		}
+
+		while(CDC_Transmit_FS(tx_buffer, USB_TX_BUFFER_SIZE) != USBD_OK);
+		adc_packet_counter++;
+		conv_state = IDLE;
+
+	}
+}
 
 /* USER CODE END 4 */
 
