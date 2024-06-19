@@ -291,7 +291,8 @@ class MainWindowLogic:
             pid = int(vid_pid_split[3], 16)
 
             if vid == SharedParameters.device_vid and pid == SharedParameters.device_pid:
-                self.serial = serial.Serial(port=port, baudrate=115200, timeout=None)
+                print(f"Connecting to port {port}...")
+                self.serial = serial.Serial(port=port, baudrate=9600, timeout=None)
                 return True
 
         return False
@@ -345,6 +346,7 @@ class MainWindowLogic:
         setup_string = ""
         setup_string += f"RecLen:{str(self.record.length_ms)};"
         setup_string += f"RecInt:{str(self.record.interval_us)};"
+
         tc_sensitivity_ranking = ["E", "J", "K", "T"]
         highest_sensitivity_tc_available = "T"
         for channel in self.record.channels:
@@ -352,10 +354,17 @@ class MainWindowLogic:
                 continue
             if tc_sensitivity_ranking.index(channel.tc_type) < tc_sensitivity_ranking.index(highest_sensitivity_tc_available):
                 highest_sensitivity_tc_available = channel.tc_type
-
         setup_string += f"TcType:{highest_sensitivity_tc_available};"
-        enabled_channels_list = str([int(x.available) for x in self.record.channels])
-        setup_string += "EnChan:{};".format(enabled_channels_list.replace(" ", ""))
+
+        trigger_source_full = self.ui.TriggerSourceValue.currentText()
+        if "button" in trigger_source_full:
+            trigger_source_short = "btn"
+        elif "trigger 1" in trigger_source_full:
+            trigger_source_short = "ex1"
+        else:
+            trigger_source_short = "ex2"
+        setup_string += f"TrgSrc:{trigger_source_short};"
+
         setup_string += "\0"
         self.serial.write(setup_string.encode())
         print(setup_string)

@@ -62,15 +62,14 @@ uint16_t adc_buffers[MAX_CHANNEL_COUNT][ADC_BUFFER_SIZE];
 int8_t rx_buffer[USB_RX_BUFFER_SIZE];
 
 volatile enum CONV_STATE conv_state = IDLE;
-volatile int conv_done = 0;
 volatile int target_conv_count = 0;
 volatile int conv_count = 0;
-enum TRIG_SOURCE trig_source = TRIG_SHORT;
 
 uint16_t record_length_ms = 100;
 uint16_t record_interval_us = 10;
 char tc_type = 'J';
-uint8_t channel_enabled[MAX_CHANNEL_COUNT] = {0, 0, 0, 0};
+enum TRIG_SOURCE trig_source = TRIG_SHORT;
+enum ADC_BUFFER_STATE adc_state[MAX_CHANNEL_COUNT] = {EMPTY, EMPTY, EMPTY, EMPTY};
 
 /* USER CODE END PV */
 
@@ -88,7 +87,8 @@ static void MX_TIM2_Init(void);
 int InterpretConfig(void);
 int InterpretVariable(char name[CFG_VAR_SIZE], char value[CFG_VAR_SIZE]);
 int SetupMeasurement(void);
-int TakeMeasurement(void);
+int StartMeasurement(void);
+int SendData(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -133,23 +133,7 @@ int main(void)
   MX_TIM2_Init();
   MX_USB_Device_Init();
   /* USER CODE BEGIN 2 */
-//  HAL_TIM_Base_Start_IT(&htim2); // Record length timer
-//  HAL_TIM_Base_Start_IT(&htim3); // Record interval timer
 
-//  HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
-//  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers[0], ADC_BUFFER_SIZE);
-//  if(MAX_CHANNEL_COUNT > 1){
-//	  HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
-//	  HAL_ADC_Start_DMA(&hadc2, (uint32_t*)adc_buffers[1], ADC_BUFFER_SIZE);
-//  }
-//  if(MAX_CHANNEL_COUNT > 2){
-//	  HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED);
-//	  HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc_buffers[2], ADC_BUFFER_SIZE);
-//  }
-//  if(MAX_CHANNEL_COUNT > 3){
-// 	  HAL_ADCEx_Calibration_Start(&hadc4, ADC_SINGLE_ENDED);
-// 	  HAL_ADC_Start_DMA(&hadc4, (uint32_t*)adc_buffers[3], ADC_BUFFER_SIZE);
-//   }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -168,10 +152,37 @@ int main(void)
 	  if(conv_state == CFG_INTERPRETED){
 		  SetupMeasurement();
 	  }
-	  if(conv_done){
+	  if(conv_state == ARMED){
+		  StartMeasurement();
+	  }
+	  if(conv_state == MEASURING){
+		 if(adc_state[0] == START_FULL &&
+			adc_state[1] == START_FULL &&
+			adc_state[2] == START_FULL &&
+			adc_state[3] == START_FULL) {
+			 for(int i = 0; i < MAX_CHANNEL_COUNT; i++){
+				 adc_state[i] = EMPTY;
+			 }
+			 HAL_GPIO_TogglePin(TEST_OUT_GPIO_Port, TEST_OUT_Pin);
+		 }
+		 else if(adc_state[0] == END_FULL &&
+				 adc_state[1] == END_FULL &&
+				 adc_state[2] == END_FULL &&
+				 adc_state[3] == END_FULL) {
+			 for(int i = 0; i < MAX_CHANNEL_COUNT; i++){
+				 adc_state[i] = EMPTY;
+			 }
+			 HAL_GPIO_TogglePin(TEST_OUT2_GPIO_Port, TEST_OUT2_Pin);
+		 }
+	  }
+	  if(conv_state == DONE){
 		  HAL_TIM_Base_Stop_IT(&htim2);
+		  HAL_ADC_Stop_DMA(&hadc1);
+		  HAL_ADC_Stop_DMA(&hadc2);
+		  HAL_ADC_Stop_DMA(&hadc3);
+		  HAL_ADC_Stop_DMA(&hadc4);
+		  memset(adc_buffers, 0, sizeof(adc_buffers));
 		  conv_state = IDLE;
-		  conv_done = 0;
 		  conv_count = 0;
 	  }
 
@@ -598,9 +609,6 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Channel1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
   /* DMA1_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
@@ -610,6 +618,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel4_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
+  /* DMA1_Channel5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
 
 }
 
@@ -631,7 +642,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(USB_EN_GPIO_Port, USB_EN_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, USB_EN_Pin|TEST_OUT2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, TEST_OUT_Pin|LD2_Pin, GPIO_PIN_RESET);
@@ -648,6 +659,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(USB_EN_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : TEST_OUT2_Pin */
+  GPIO_InitStruct.Pin = TEST_OUT2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(TEST_OUT2_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : TEST_OUT_Pin */
   GPIO_InitStruct.Pin = TEST_OUT_Pin;
@@ -672,22 +690,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-// Called when first half of buffer is filled
-void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc) {
-	if(conv_state != IDLE){
-		HAL_GPIO_TogglePin(TEST_OUT_GPIO_Port, TEST_OUT_Pin);
-	}
-	conv_state = WAITING_START;
-}
-
-// Called when buffer is completely filled
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
-	if(conv_state != IDLE){
-		HAL_GPIO_TogglePin(TEST_OUT_GPIO_Port, TEST_OUT_Pin);
-	}
-	conv_state = WAITING_END;
-}
 
 int InterpretConfig(void) {
 	char variable_name[CFG_VAR_SIZE];
@@ -742,11 +744,15 @@ int InterpretVariable(char name[CFG_VAR_SIZE], char value[CFG_VAR_SIZE]) {
 	else if(strcmp(name, "TcType") == 0) {
 		tc_type = value[0];
 	}
-	else if(strcmp(name, "EnChan") == 0) {
-		int channel_index = 0;
-		for(int i = 1; i < strlen(value); i += 2){
-			channel_enabled[channel_index] = value[i] - '0';
-			channel_index++;
+	else if(strcmp(name, "TrgSrc") == 0) {
+		if(strcmp(value, "btn") == 0) {
+			trig_source = TRIG_SHORT;
+		}
+		else if(strcmp(value, "ex1") == 0) {
+			trig_source = TRIG_EXT_1;
+		}
+		else if(strcmp(value, "ex2") == 0) {
+			trig_source = TRIG_EXT_2;
 		}
 	}
 	return 1;
@@ -759,18 +765,66 @@ int SetupMeasurement(void){
 	__HAL_TIM_SET_AUTORELOAD(&htim2, record_interval_us - 1);
 	__HAL_TIM_SET_COUNTER(&htim2, record_interval_us - 1);
 
-	HAL_TIM_Base_Start_IT(&htim2);
+	// Calculate and set DAC value
 
 	conv_state = ARMED;
 	return 1;
 }
 
-int TakeMeasurement(void) {
+int StartMeasurement(void) {
+	HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers[0], ADC_BUFFER_SIZE);
+	HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
+	HAL_ADC_Start_DMA(&hadc2, (uint32_t*)adc_buffers[1], ADC_BUFFER_SIZE);
+	HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED);
+	HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc_buffers[2], ADC_BUFFER_SIZE);
+	HAL_ADCEx_Calibration_Start(&hadc4, ADC_SINGLE_ENDED);
+	HAL_ADC_Start_DMA(&hadc4, (uint32_t*)adc_buffers[3], ADC_BUFFER_SIZE);
+	HAL_TIM_Base_Start_IT(&htim2);
+	conv_state = MEASURING;
+
+	return 1;
+}
+
+// Called when first half of buffer is filled
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc) {
+	if (hadc == &hadc1){
+		adc_state[0] = START_FULL;
+	}
+	else if(hadc == &hadc2){
+		adc_state[1] = START_FULL;
+	}
+	else if(hadc == &hadc3){
+		adc_state[2] = START_FULL;
+	}
+	else if(hadc == &hadc4){
+		adc_state[3] = START_FULL;
+	}
+}
+
+// Called when buffer is completely filled
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
+	printf("Asdf");
+	if (hadc == &hadc1){
+		adc_state[0] = END_FULL;
+	}
+	else if(hadc == &hadc2){
+		adc_state[1] = END_FULL;
+	}
+	else if(hadc == &hadc3){
+		adc_state[2] = END_FULL;
+	}
+	else if(hadc == &hadc4){
+		adc_state[3] = END_FULL;
+	}
+}
+
+int SendData(void) {
 	unsigned char tx_buffer[USB_TX_BUFFER_SIZE];
 
 	uint8_t adc_packet_counter = 0;
 
-	if(conv_state == WAITING_START || conv_state == WAITING_END){
+	if(conv_state == START_FULL || conv_state == END_FULL){
 
 		// Clear header
 		for(int i = 0; i < USB_HEADER_SIZE; i++){
@@ -781,9 +835,9 @@ int TakeMeasurement(void) {
 
 		// Determine place in ADC buffer
 		unsigned int adc_buffer_start_index;
-		if(conv_state == WAITING_START)
+		if(conv_state == START_FULL)
 			adc_buffer_start_index = 0;
-		else if(conv_state == WAITING_END)
+		else if(conv_state == END_FULL)
 			adc_buffer_start_index = ADC_BUFFER_SIZE/2;
 
 		// Offset USB tx buffer index by header length

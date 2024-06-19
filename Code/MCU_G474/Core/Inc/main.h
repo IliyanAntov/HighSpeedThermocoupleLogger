@@ -41,8 +41,15 @@ enum CONV_STATE {
   CFG_RECEIVED,
   CFG_INTERPRETED,
   ARMED,
-  WAITING_START,
-  WAITING_END
+  MEASURING,
+  DONE,
+  SENDING
+};
+
+enum ADC_BUFFER_STATE {
+	EMPTY,
+	START_FULL,
+	END_FULL
 };
 
 enum TRIG_SOURCE {
@@ -76,6 +83,8 @@ void Error_Handler(void);
 #define B1_EXTI_IRQn EXTI15_10_IRQn
 #define USB_EN_Pin GPIO_PIN_0
 #define USB_EN_GPIO_Port GPIOC
+#define TEST_OUT2_Pin GPIO_PIN_1
+#define TEST_OUT2_GPIO_Port GPIOC
 #define TEST_OUT_Pin GPIO_PIN_1
 #define TEST_OUT_GPIO_Port GPIOA
 #define LPUART1_TX_Pin GPIO_PIN_2

@@ -41,9 +41,9 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-extern int conv_done;
 extern int target_conv_count;
 extern int conv_count;
+extern enum CONV_STATE conv_state;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -206,20 +206,6 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
-  * @brief This function handles DMA1 channel1 global interrupt.
-  */
-void DMA1_Channel1_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Channel1_IRQn 0 */
-
-  /* USER CODE END DMA1_Channel1_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_adc1);
-  /* USER CODE BEGIN DMA1_Channel1_IRQn 1 */
-
-  /* USER CODE END DMA1_Channel1_IRQn 1 */
-}
-
-/**
   * @brief This function handles DMA1 channel2 global interrupt.
   */
 void DMA1_Channel2_IRQHandler(void)
@@ -262,6 +248,20 @@ void DMA1_Channel4_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles DMA1 channel5 global interrupt.
+  */
+void DMA1_Channel5_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Channel5_IRQn 0 */
+
+  /* USER CODE END DMA1_Channel5_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_adc1);
+  /* USER CODE BEGIN DMA1_Channel5_IRQn 1 */
+
+  /* USER CODE END DMA1_Channel5_IRQn 1 */
+}
+
+/**
   * @brief This function handles USB high priority interrupt remap.
   */
 void USB_HP_IRQHandler(void)
@@ -300,9 +300,8 @@ void TIM2_IRQHandler(void)
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
   conv_count++;
-  HAL_GPIO_TogglePin(TEST_OUT_GPIO_Port, TEST_OUT_Pin);
   if(conv_count > target_conv_count){
-	  conv_done = 1;
+	  conv_state = DONE;
   }
   /* USER CODE END TIM2_IRQn 1 */
 }
