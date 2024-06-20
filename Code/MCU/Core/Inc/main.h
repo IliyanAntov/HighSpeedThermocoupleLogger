@@ -31,7 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -40,6 +40,7 @@ enum CONV_STATE {
   IDLE,
   CFG_RECEIVED,
   CFG_INTERPRETED,
+  PARAMETERS_SET,
   ARMED,
   MEASURING,
   DONE,
@@ -112,6 +113,12 @@ void Error_Handler(void);
 #define TRIG_EXT_1_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
+#define TEMP_SENSOR_ADDR 0b1001000
+
+#define INAMP_OUTPUT_BUFFER_OFFSET 0.2		// Compensating for the opamp minimum output voltage
+#define MINIMUM_TEMPERATURE -20				// °C
+#define INAMP_GAIN ((9900 / 54.9) + 1)
+
 #define MAX_CHANNEL_COUNT 4
 #define ADC_BUFFER_SIZE 2000														// uint16
 #define USB_HEADER_SIZE 20															// uint8

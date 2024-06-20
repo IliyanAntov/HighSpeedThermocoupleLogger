@@ -65,7 +65,7 @@ main-build: HS_thermocouple_logger.elf secondary-outputs
 
 # Tool invocations
 HS_thermocouple_logger.elf HS_thermocouple_logger.map: $(OBJS) $(USER_OBJS) C:\Users\AntovI\Desktop\Uni\DR\Code\MCU\STM32G474RETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "HS_thermocouple_logger.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\AntovI\Desktop\Uni\DR\Code\MCU\STM32G474RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="HS_thermocouple_logger.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+	arm-none-eabi-gcc -o "HS_thermocouple_logger.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\AntovI\Desktop\Uni\DR\Code\MCU\STM32G474RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="HS_thermocouple_logger.map" -Wl,--gc-sections -static -u_printf_float --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

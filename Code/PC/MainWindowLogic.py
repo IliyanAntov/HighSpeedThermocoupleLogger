@@ -315,7 +315,7 @@ class MainWindowLogic:
 
             return
 
-        number_of_steps = 3
+        number_of_steps = 4
         progress_dialog = QProgressDialog("Preparing...", "Cancel", 0, number_of_steps + 1, self.form)
         progress_dialog.overrideWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
         progress_dialog.setWindowModality(Qt.WindowModal)
@@ -327,15 +327,18 @@ class MainWindowLogic:
         progress_dialog.setValue(1)
         progress_dialog.setLabelText("Sending setup to MCU...")
         self.measurement_send_setup()
-        progress_dialog.setLabelText("Receiving data from MCU...")
+        progress_dialog.setLabelText("Receiving parameters from MCU...")
         progress_dialog.setValue(2)
+        self.measurement_receive_parameters()
+        progress_dialog.setLabelText("Receiving data from MCU...")
+        progress_dialog.setValue(3)
         self.measurement_receive_data()
         progress_dialog.setLabelText("Saving record...")
-        progress_dialog.setValue(3)
+        progress_dialog.setValue(4)
         # TODO: remove this comment
         # self.measurement_save_record()
         progress_dialog.setLabelText("Done")
-        progress_dialog.setValue(4)
+        progress_dialog.setValue(5)
 
         self.form.setEnabled(True)
 
@@ -368,6 +371,21 @@ class MainWindowLogic:
         setup_string += "\0"
         self.serial.write(setup_string.encode())
         print(setup_string)
+
+        return
+
+    def measurement_receive_parameters(self):
+        parameters_raw = self.serial.readline(SharedParameters.usb_buffer_size)
+        parameters = parameters_raw.decode().rstrip("\n")
+        parameters_split = parameters.split(";")
+        for parameter in parameters_split:
+            parameter_name_value = parameter.split(":")
+            if parameter_name_value[0] == "CjcTmp":
+                self.record.cold_junction_temperature = float(parameter_name_value[1])
+            elif parameter_name_value[0] == "AlgRfr":
+                self.record.analog_reference_voltage = float(parameter_name_value[1])
+            elif parameter_name_value[0] == "AplOfs":
+                self.record.applied_voltage_offset = float(parameter_name_value[1])
 
         return
 

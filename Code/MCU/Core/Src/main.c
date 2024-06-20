@@ -66,12 +66,82 @@ int8_t rx_buffer[USB_RX_BUFFER_SIZE];
 volatile enum CONV_STATE conv_state = IDLE;
 volatile int target_conv_count = 0;
 volatile int conv_count = 0;
+volatile float cold_junction_temp = 0;			// [°C]
+volatile float analog_reference_voltage = 2.9;	// [V]
+volatile float applied_voltage_offset = 0;		// [V]
 
 uint16_t record_length_ms = 100;
 uint16_t record_interval_us = 10;
 char tc_type = 'J';
 enum TRIG_SOURCE trig_source = TRIG_SHORT;
 enum ADC_BUFFER_STATE adc_state[MAX_CHANNEL_COUNT] = {EMPTY, EMPTY, EMPTY, EMPTY};
+
+// -210 to 760°C
+const uint8_t type_j_coefficients_count = 9;
+const double type_j_coefficients[9] = {0,
+									   5.0381187815 * pow(10, 1),
+									   3.0475836930 * pow(10, -2),
+									  -8.5681065720 * pow(10, -5),
+									   1.3228195295 * pow(10, -7),
+									  -1.7052958337 * pow(10, -10),
+									   2.0948090697 * pow(10, -13),
+									  -1.2538395336 * pow(10, -16),
+									   1.5631725697 * pow(10, -20)
+
+};
+
+// -270 to 0°C
+const uint8_t type_k_coefficients_count = 11;
+const double type_k_coefficients[11] = {0,
+										3.9450128025 * pow(10, 1),
+										2.3622373598 * pow(10, -2),
+									   -3.2858906784 * pow(10, -4),
+									   -4.9904828777 * pow(10, -6),
+									   -6.7509059173 * pow(10, -8),
+									   -5.7410327428 * pow(10, -10),
+									   -3.1088872894 * pow(10, -12),
+									   -1.0451609365 * pow(10, -14),
+									   -1.9889266878 * pow(10, -17),
+									   -1.6322697486 * pow(10, -20)
+
+};
+
+// -270 to 0°C
+const uint8_t type_t_coefficients_count = 15;
+const double type_t_coefficients[15] = {0,
+		 	 	 	 	 	 	 	 	3.8748106364 * pow(10, 1),
+										4.4194434347 * pow(10, -2),
+										1.1844323105 * pow(10, -4),
+										2.0032973554 * pow(10, -5),
+										9.0138019559 * pow(10, -7),
+										2.2651156593 * pow(10, -8),
+										3.6071154205 * pow(10, -10),
+										3.8493939883 * pow(10, -12),
+										2.8213521925 * pow(10, -14),
+										1.4251594779 * pow(10, -16),
+										4.8768662286 * pow(10, -19),
+										1.0795539270 * pow(10, -21),
+										1.3945027062 * pow(10, -24),
+										7.9795153927 * pow(10, -28)
+};
+
+// -270 to 0°C
+const uint8_t type_e_coefficients_count = 14;
+const double type_e_coefficients[14] = {0,
+										5.8665508708 * pow(10, 1),
+										4.5410977124 * pow(10, -2),
+									   -7.7998048686 * pow(10, -4),
+									   -2.5800160843 * pow(10, -5),
+									   -5.9452583057 * pow(10, -7),
+									   -9.3214058667 * pow(10, -9),
+									   -1.0287605534 * pow(10, -10),
+									   -8.0370123621 * pow(10, -13),
+									   -4.3979497391 * pow(10, -15),
+									   -1.6414776355 * pow(10, -17),
+									   -3.9673619516 * pow(10, -20),
+									   -5.5827328721 * pow(10, -23),
+									   -3.4657842013 * pow(10, -26)
+};
 
 /* USER CODE END PV */
 
@@ -90,6 +160,7 @@ static void MX_DAC1_Init(void);
 int InterpretConfig(void);
 int InterpretVariable(char name[CFG_VAR_SIZE], char value[CFG_VAR_SIZE]);
 int SetupMeasurement(void);
+int SendParameters(void);
 int StartMeasurement(void);
 int SendData(void);
 /* USER CODE END PFP */
@@ -155,6 +226,9 @@ int main(void)
 	  if(conv_state == CFG_INTERPRETED){
 		  SetupMeasurement();
 	  }
+	  if(conv_state == PARAMETERS_SET){
+		  SendParameters();
+	  }
 
 	  if(conv_state == ARMED){
 		  StartMeasurement();
@@ -188,6 +262,10 @@ int main(void)
 		  conv_count = 0;
 		  HAL_GPIO_TogglePin(IND_LED_G_GPIO_Port, IND_LED_G_Pin);
 	  }
+
+
+
+	  printf("asdf");
 
   }
   /* USER CODE END 3 */
@@ -537,13 +615,13 @@ static void MX_DAC1_Init(void)
 
   /** DAC channel OUT1 config
   */
-  sConfig.DAC_HighFrequency = DAC_HIGH_FREQUENCY_INTERFACE_MODE_AUTOMATIC;
+  sConfig.DAC_HighFrequency = DAC_HIGH_FREQUENCY_INTERFACE_MODE_DISABLE;
   sConfig.DAC_DMADoubleDataMode = DISABLE;
   sConfig.DAC_SignedFormat = DISABLE;
   sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
   sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
   sConfig.DAC_Trigger2 = DAC_TRIGGER_NONE;
-  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_DISABLE;
   sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_EXTERNAL;
   sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
   if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
@@ -807,17 +885,91 @@ int InterpretVariable(char name[CFG_VAR_SIZE], char value[CFG_VAR_SIZE]) {
 }
 
 int SetupMeasurement(void){
-	// ADC sync timer
+	// > Set the correct analog reference voltage and get the relevant coefficients
+
+	const double *used_coefficients;
+	uint8_t coefficients_count;
+	if(tc_type == 'E') {
+		HAL_SYSCFG_VREFBUF_VoltageScalingConfig(SYSCFG_VREFBUF_VOLTAGE_SCALE2); // 2.9V
+		analog_reference_voltage = 2.9;
+		used_coefficients = type_e_coefficients;
+		coefficients_count = type_e_coefficients_count;
+	}
+	else if(tc_type == 'J') {
+		HAL_SYSCFG_VREFBUF_VoltageScalingConfig(SYSCFG_VREFBUF_VOLTAGE_SCALE1); // 2.5V
+		analog_reference_voltage = 2.5;
+		used_coefficients = type_j_coefficients;
+		coefficients_count = type_j_coefficients_count;
+	}
+	else if(tc_type == 'K') {
+		HAL_SYSCFG_VREFBUF_VoltageScalingConfig(SYSCFG_VREFBUF_VOLTAGE_SCALE0); // 2.048V
+		analog_reference_voltage = 2.048;
+		used_coefficients = type_k_coefficients;
+		coefficients_count = type_k_coefficients_count;
+	}
+	else if(tc_type == 'T') {
+		HAL_SYSCFG_VREFBUF_VoltageScalingConfig(SYSCFG_VREFBUF_VOLTAGE_SCALE0); // 2.048V
+		analog_reference_voltage = 2.048;
+		used_coefficients = type_t_coefficients;
+		coefficients_count = type_t_coefficients_count;
+	}
+
+	// > Calculate and set ADC sync timer
 	target_conv_count = (record_length_ms * 1000) / record_interval_us;
 
 	__HAL_TIM_SET_AUTORELOAD(&htim2, record_interval_us - 1);
 	__HAL_TIM_SET_COUNTER(&htim2, record_interval_us - 1);
 
-	// Calculate and set DAC value
+	// > Calculate and set DAC value
 
+	// Initiate a one shot temperature conversion
+	uint8_t one_shot_conversion_command = 0b01000100;
+	HAL_I2C_Mem_Write(&hi2c3, (TEMP_SENSOR_ADDR << 1), 0x1, I2C_MEMADD_SIZE_8BIT, &one_shot_conversion_command, 1, HAL_MAX_DELAY);
+	// Read the temperature
+	uint8_t temp_buffer[2];
+	HAL_I2C_Mem_Read(&hi2c3, (TEMP_SENSOR_ADDR << 1), 0x0, I2C_MEMADD_SIZE_8BIT, temp_buffer, 2, HAL_MAX_DELAY);
+
+	// Calculate the temperature in C
+	uint8_t negative_temperature_flag = temp_buffer[0] >> 7;
+	temp_buffer[0] &= 0b01111111;
+	uint16_t sensor_output = (temp_buffer[0] << 2) | (temp_buffer[1] >> 6);
+
+	if(negative_temperature_flag) {
+		cold_junction_temp = (sensor_output - 512)/4.0;
+	}
+	else{
+		cold_junction_temp = (sensor_output)/4.0;
+	}
+
+	// Calculate the required DAC offset
+	float cjc_offset_temperature = MINIMUM_TEMPERATURE - cold_junction_temp;
+	double cjc_offset_voltage = 0;
+	for(int i = 0; i < coefficients_count; i++) {
+		cjc_offset_voltage += used_coefficients[i] * pow(cjc_offset_temperature, i);
+	}
+
+	double total_offset_calc = INAMP_OUTPUT_BUFFER_OFFSET + ((-1) * (cjc_offset_voltage * pow(10, -6)) * INAMP_GAIN);
+	uint32_t offset = (uint32_t)(total_offset_calc * 4096) / analog_reference_voltage;
+	applied_voltage_offset = (float)(offset * analog_reference_voltage) / 4096;
+
+	// Set the DAC voltage
+	HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, offset);
+	HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
+
+	conv_state = PARAMETERS_SET;
+	return 1;
+}
+
+int SendParameters(void) {
+	unsigned char parameters_msg[USB_TX_BUFFER_SIZE];
+
+	sprintf((char *)parameters_msg, "CjcTmp:%.2f;AlgRfr:%.3f;AplOfs:%.4f\n", cold_junction_temp, analog_reference_voltage, applied_voltage_offset);
+	uint16_t line_len = strlen((char *)parameters_msg);
+
+	while(CDC_Transmit_FS(parameters_msg, line_len) != USBD_OK);
 
 	conv_state = ARMED;
-	return 1;
+
 }
 
 int StartMeasurement(void) {
