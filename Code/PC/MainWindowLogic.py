@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import time
 from datetime import datetime
@@ -11,7 +12,7 @@ from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import *
 
 from PC.Record import Record
-from PC.SharedParameters import SharedParameters
+from PC.Parameters import Parameters
 from PlotLogic import PlotLogic
 
 from MainWindowUI import Ui_Form
@@ -290,7 +291,7 @@ class MainWindowLogic:
             vid = int(vid_pid_split[2], 16)
             pid = int(vid_pid_split[3], 16)
 
-            if vid == SharedParameters.device_vid and pid == SharedParameters.device_pid:
+            if vid == Parameters.device_vid and pid == Parameters.device_pid:
                 print(f"Connecting to port {port}...")
                 self.serial = serial.Serial(port=port, baudrate=9600, timeout=None)
                 return True
@@ -329,14 +330,20 @@ class MainWindowLogic:
         self.measurement_send_setup()
         progress_dialog.setLabelText("Receiving parameters from MCU...")
         progress_dialog.setValue(2)
-        self.measurement_receive_parameters()
+        try:
+            self.measurement_receive_parameters()
+        except:
+            print("Error")
+            progress_dialog.setValue(5)
+            self.form.setEnabled(True)
+            return
         progress_dialog.setLabelText("Receiving data from MCU...")
         progress_dialog.setValue(3)
         self.measurement_receive_data()
         progress_dialog.setLabelText("Saving record...")
         progress_dialog.setValue(4)
         # TODO: remove this comment
-        # self.measurement_save_record()
+        self.measurement_save_record()
         progress_dialog.setLabelText("Done")
         progress_dialog.setValue(5)
 
@@ -375,7 +382,7 @@ class MainWindowLogic:
         return
 
     def measurement_receive_parameters(self):
-        parameters_raw = self.serial.readline(SharedParameters.usb_buffer_size)
+        parameters_raw = self.serial.readline(Parameters.usb_header_size)
         parameters = parameters_raw.decode().rstrip("\n")
         parameters_split = parameters.split(";")
         for parameter in parameters_split:
@@ -385,14 +392,73 @@ class MainWindowLogic:
             elif parameter_name_value[0] == "AlgRfr":
                 self.record.analog_reference_voltage = float(parameter_name_value[1])
             elif parameter_name_value[0] == "AplOfs":
-                self.record.applied_voltage_offset = float(parameter_name_value[1])
+                self.record.applied_offset_voltage = float(parameter_name_value[1])
+            elif parameter_name_value[0] == "AdcBuf":
+                self.record.adc_buffer_size = int(parameter_name_value[1])
+            elif parameter_name_value[0] == "UsbBuf":
+                self.record.usb_buffer_size = int(parameter_name_value[1])
+            elif parameter_name_value[0] == "PktCnt":
+                self.record.target_packet_count = int(parameter_name_value[1])
 
         return
 
     def measurement_receive_data(self):
         # Receive data from MCU
 
+        print(f"Buffers to recieve: {self.record.target_packet_count}, usb buffer size: {self.record.usb_buffer_size}")
+        buffers = []
+        for i in range(self.record.target_packet_count):
+            while not self.serial.inWaiting():
+                pass
+            buffers.extend([self.serial.read(self.record.usb_buffer_size)])
+
+        for buffer in buffers:
+
+            adc_data_split = []
+            for j in range(self.record.num_of_channels):
+                adc_data_split.append(buffer[(self.record.adc_buffer_size * j):(self.record.adc_buffer_size * (j + 1))])
+
+            index = 0
+            for channel_data in adc_data_split:
+                if not self.record.channels[index].available:
+                    index += 1
+                    continue
+
+                for j in range(0, (len(channel_data) - 1), 2):
+                    adc_reading_num = (channel_data[j] << 8) + channel_data[j + 1]
+                    adc_reading_voltage = adc_reading_num / pow(2, 16) * self.record.analog_reference_voltage
+                    temperature = self.calculate_thermocouple_temperature(measured_voltage=adc_reading_voltage,
+                                                                          tc_type=self.record.channels[index].tc_type)
+
+                    self.record.channels[index].raw_data.append(temperature)
+
+                index += 1
+
+        if self.serial.inWaiting():
+            self.serial.read(self.serial.inWaiting())
         return
+
+    def calculate_thermocouple_temperature(self, measured_voltage, tc_type):
+        if measured_voltage > 0:
+            tc_voltage = (measured_voltage - self.record.applied_offset_voltage) / Parameters.inamp_gain
+            tc_voltage_uv = tc_voltage * 10**6
+
+            cold_junction_dir = "+" if self.record.cold_junction_temperature > 0 else "-"
+            cold_junction_voltage_uv = 0
+            for i in range(len(Parameters.temp_to_voltage[tc_type][cold_junction_dir])):
+                cold_junction_voltage_uv += Parameters.temp_to_voltage[tc_type][cold_junction_dir][i] * (self.record.cold_junction_temperature ** i)
+            if tc_type == "K" and cold_junction_dir == "+":
+                cold_junction_voltage_uv += Parameters.temp_to_voltage[tc_type]["alpha"][0] * \
+                                            math.exp(Parameters.temp_to_voltage[tc_type]["alpha"][1] * ((self.record.cold_junction_temperature - 126.9686)**2))
+
+            tc_voltage_uv += cold_junction_voltage_uv
+
+            tc_temperature_dir = "+" if tc_voltage_uv > 0 else "-"
+            tc_temperature = 0
+            for j in range(len(Parameters.voltage_to_temp[tc_type][tc_temperature_dir])):
+                tc_temperature += Parameters.voltage_to_temp[tc_type][tc_temperature_dir][j] * (tc_voltage_uv ** j)
+
+            return tc_temperature
 
     def measurement_save_record(self):
         # Save received data
@@ -402,15 +468,19 @@ class MainWindowLogic:
         jsonpickle.set_encoder_options('json', indent=4)
         output_json = jsonpickle.encode(self.record)
 
-        with open(str(SharedParameters.record_folder_dir + record_file_name), "w") as output_file:
+        with open(str(Parameters.record_folder_dir + record_file_name), "w") as output_file:
             output_file.writelines(output_json)
 
         self.display_available_records()
 
+        # Reset channel data
+        for channel in self.record.channels:
+            channel.raw_data = []
+
     def display_available_records(self):
         self.ui.RecordsList.clear()
         self.ui.RecordsList.setItemAlignment(Qt.AlignRight)
-        record_list = os.listdir(SharedParameters.record_folder_dir)
+        record_list = os.listdir(Parameters.record_folder_dir)
         for record in record_list:
             item = QListWidgetItem(record.replace(".json", ""))
             item.setTextAlignment(Qt.AlignRight)
@@ -439,7 +509,7 @@ class MainWindowLogic:
         if not (ok and new_name):
             return
 
-        os.rename(str(SharedParameters.record_folder_dir + current_name + ".json"), str(SharedParameters.record_folder_dir + new_name + ".json"))
+        os.rename(str(Parameters.record_folder_dir + current_name + ".json"), str(Parameters.record_folder_dir + new_name + ".json"))
         self.display_available_records()
 
     def delete_selected_record(self):
@@ -458,8 +528,9 @@ class MainWindowLogic:
         if response == QMessageBox.No:
             return
 
-        os.remove(str(SharedParameters.record_folder_dir + selected_record_name + ".json"))
+        os.remove(str(Parameters.record_folder_dir + selected_record_name + ".json"))
         self.display_available_records()
+        self.ui.RecordsList.setCurrentRow(0)
 
     def set_field_limit_values(self):
         max_filter_frequency_khz = (1.0 / (self.record.interval_us / 10**3)) / 2 - 0.001

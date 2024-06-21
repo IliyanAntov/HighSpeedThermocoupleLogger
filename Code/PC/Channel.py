@@ -2,7 +2,7 @@ class Channel:
     def __init__(self):
         self.available = False
 
-        self.raw_data = None
+        self.raw_data = []
         self.tc_type = "J"
 
         self.data_processing_enabled = False

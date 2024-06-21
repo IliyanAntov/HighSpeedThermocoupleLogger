@@ -53,12 +53,6 @@ enum ADC_BUFFER_STATE {
 	END_FULL
 };
 
-enum TRIG_SOURCE {
-	TRIG_SHORT,
-	TRIG_EXT_1,
-	TRIG_EXT_2
-};
-
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -107,10 +101,13 @@ void Error_Handler(void);
 #define T_SWO_GPIO_Port GPIOB
 #define TRIG_SHORT_Pin GPIO_PIN_5
 #define TRIG_SHORT_GPIO_Port GPIOB
+#define TRIG_SHORT_EXTI_IRQn EXTI9_5_IRQn
 #define TRIG_EXT_2_Pin GPIO_PIN_6
 #define TRIG_EXT_2_GPIO_Port GPIOB
+#define TRIG_EXT_2_EXTI_IRQn EXTI9_5_IRQn
 #define TRIG_EXT_1_Pin GPIO_PIN_7
 #define TRIG_EXT_1_GPIO_Port GPIOB
+#define TRIG_EXT_1_EXTI_IRQn EXTI9_5_IRQn
 
 /* USER CODE BEGIN Private defines */
 #define TEMP_SENSOR_ADDR 0b1001000
@@ -120,10 +117,10 @@ void Error_Handler(void);
 #define INAMP_GAIN ((9900 / 54.9) + 1)
 
 #define MAX_CHANNEL_COUNT 4
-#define ADC_BUFFER_SIZE 2000														// uint16
-#define USB_HEADER_SIZE 20															// uint8
-#define USB_TX_BUFFER_SIZE USB_HEADER_SIZE + (ADC_BUFFER_SIZE * MAX_CHANNEL_COUNT) 	// uint8
-#define USB_RX_BUFFER_SIZE 64 														// uint8
+#define ADC_BUFFER_SIZE 1000									// uint16
+#define USB_TX_BUFFER_SIZE ADC_BUFFER_SIZE * MAX_CHANNEL_COUNT	// uint8
+#define USB_TX_HEADER_SIZE 256
+#define USB_RX_BUFFER_SIZE 256 									// uint8
 #define CFG_VAR_SIZE 64
 /* USER CODE END Private defines */
 

@@ -60,8 +60,13 @@ I2C_HandleTypeDef hi2c3;
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
+int current_packet_count = 0;
+int target_packet_count = 0;
+int dropped_packet_count = 0;
+
 uint16_t adc_buffers[MAX_CHANNEL_COUNT][ADC_BUFFER_SIZE];
 int8_t rx_buffer[USB_RX_BUFFER_SIZE];
+char current_buffer_id = 'e';
 
 volatile enum CONV_STATE conv_state = IDLE;
 volatile int target_conv_count = 0;
@@ -73,8 +78,10 @@ volatile float applied_voltage_offset = 0;		// [V]
 uint16_t record_length_ms = 100;
 uint16_t record_interval_us = 10;
 char tc_type = 'J';
-enum TRIG_SOURCE trig_source = TRIG_SHORT;
 enum ADC_BUFFER_STATE adc_state[MAX_CHANNEL_COUNT] = {EMPTY, EMPTY, EMPTY, EMPTY};
+
+volatile int conv_count_reached = 0;
+volatile int measurement_activated = 0;
 
 // -210 to 760°C
 const uint8_t type_j_coefficients_count = 9;
@@ -162,7 +169,8 @@ int InterpretVariable(char name[CFG_VAR_SIZE], char value[CFG_VAR_SIZE]);
 int SetupMeasurement(void);
 int SendParameters(void);
 int StartMeasurement(void);
-int SendData(void);
+int SendData(char buffer_id);
+int ResetStates(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -208,7 +216,7 @@ int main(void)
   MX_I2C3_Init();
   MX_DAC1_Init();
   /* USER CODE BEGIN 2 */
-
+  ResetStates();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -219,7 +227,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  // Wait for instructions
 	  if(conv_state == CFG_RECEIVED){
 		  InterpretConfig();
 	  }
@@ -229,8 +236,8 @@ int main(void)
 	  if(conv_state == PARAMETERS_SET){
 		  SendParameters();
 	  }
-
 	  if(conv_state == ARMED){
+		  while(!measurement_activated);
 		  StartMeasurement();
 	  }
 	  if(conv_state == MEASURING){
@@ -238,34 +245,40 @@ int main(void)
 			adc_state[1] == START_FULL &&
 			adc_state[2] == START_FULL &&
 			adc_state[3] == START_FULL) {
-			 for(int i = 0; i < MAX_CHANNEL_COUNT; i++){
-				 adc_state[i] = EMPTY;
+			 if(current_buffer_id == 's') {
+				 dropped_packet_count++;
 			 }
+			 current_buffer_id = 's';
+			 SendData(current_buffer_id);
 		 }
 		 else if(adc_state[0] == END_FULL &&
 				 adc_state[1] == END_FULL &&
 				 adc_state[2] == END_FULL &&
 				 adc_state[3] == END_FULL) {
-			 for(int i = 0; i < MAX_CHANNEL_COUNT; i++){
-				 adc_state[i] = EMPTY;
+			 if(current_buffer_id == 'e') {
+				 dropped_packet_count++;
 			 }
+			 current_buffer_id = 'e';
+			 SendData(current_buffer_id);
+		 }
+
+		 if(conv_count_reached && current_packet_count >= (target_packet_count - 1)) {
+			 conv_state = DONE;
 		 }
 	  }
 	  if(conv_state == DONE){
-		  HAL_TIM_Base_Stop_IT(&htim2);
-		  HAL_ADC_Stop_DMA(&hadc1);
-		  HAL_ADC_Stop_DMA(&hadc2);
-		  HAL_ADC_Stop_DMA(&hadc3);
-		  HAL_ADC_Stop_DMA(&hadc4);
-		  memset(adc_buffers, 0, sizeof(adc_buffers));
-		  conv_state = IDLE;
-		  conv_count = 0;
-		  HAL_GPIO_TogglePin(IND_LED_G_GPIO_Port, IND_LED_G_Pin);
+		  if(current_packet_count < target_packet_count){
+			  if(current_buffer_id == 's'){
+				  SendData('e');
+			  }
+			  else {
+				  SendData('s');
+			  }
+		  }
+
+		  ResetStates();
 	  }
 
-
-
-	  printf("asdf");
 
   }
   /* USER CODE END 3 */
@@ -774,10 +787,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOB, ERRATA_FIX1_Pin|ERRATA_FIX2_Pin|ERRATA_FIX3_Pin|ERRATA_FIX4_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, IND_LED_R_Pin|IND_LED_B_Pin, GPIO_PIN_SET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(IND_LED_G_GPIO_Port, IND_LED_G_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, IND_LED_R_Pin|IND_LED_G_Pin|IND_LED_B_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : ERRATA_FIX1_Pin ERRATA_FIX2_Pin ERRATA_FIX3_Pin ERRATA_FIX4_Pin */
   GPIO_InitStruct.Pin = ERRATA_FIX1_Pin|ERRATA_FIX2_Pin|ERRATA_FIX3_Pin|ERRATA_FIX4_Pin;
@@ -799,17 +809,27 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : TRIG_SHORT_Pin TRIG_EXT_2_Pin */
-  GPIO_InitStruct.Pin = TRIG_SHORT_Pin|TRIG_EXT_2_Pin;
+  /*Configure GPIO pin : TRIG_SHORT_Pin */
+  GPIO_InitStruct.Pin = TRIG_SHORT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  HAL_GPIO_Init(TRIG_SHORT_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : TRIG_EXT_2_Pin */
+  GPIO_InitStruct.Pin = TRIG_EXT_2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(TRIG_EXT_2_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : TRIG_EXT_1_Pin */
   GPIO_InitStruct.Pin = TRIG_EXT_1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(TRIG_EXT_1_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -870,17 +890,7 @@ int InterpretVariable(char name[CFG_VAR_SIZE], char value[CFG_VAR_SIZE]) {
 	else if(strcmp(name, "TcType") == 0) {
 		tc_type = value[0];
 	}
-	else if(strcmp(name, "TrgSrc") == 0) {
-		if(strcmp(value, "btn") == 0) {
-			trig_source = TRIG_SHORT;
-		}
-		else if(strcmp(value, "ex1") == 0) {
-			trig_source = TRIG_EXT_1;
-		}
-		else if(strcmp(value, "ex2") == 0) {
-			trig_source = TRIG_EXT_2;
-		}
-	}
+
 	return 1;
 }
 
@@ -956,20 +966,37 @@ int SetupMeasurement(void){
 	HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, offset);
 	HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
 
+
+	// Calculate the target packet number
+	target_packet_count = (record_length_ms / record_interval_us) * 1000 / (ADC_BUFFER_SIZE / 2);
+	if((int)(record_length_ms * 1000.0 / record_interval_us) % (ADC_BUFFER_SIZE / 2) != 0){
+		target_packet_count += 1;
+	}
+
 	conv_state = PARAMETERS_SET;
 	return 1;
 }
 
 int SendParameters(void) {
-	unsigned char parameters_msg[USB_TX_BUFFER_SIZE];
+	unsigned char parameters_msg[USB_TX_HEADER_SIZE];
 
-	sprintf((char *)parameters_msg, "CjcTmp:%.2f;AlgRfr:%.3f;AplOfs:%.4f\n", cold_junction_temp, analog_reference_voltage, applied_voltage_offset);
+	sprintf((char *)parameters_msg, "CjcTmp:%.2f;AlgRfr:%.3f;AplOfs:%.4f;AdcBuf:%d;UsbBuf:%d;PktCnt:%d\n",
+									cold_junction_temp,
+									analog_reference_voltage,
+									applied_voltage_offset,
+									ADC_BUFFER_SIZE,
+									USB_TX_BUFFER_SIZE,
+									target_packet_count);
 	uint16_t line_len = strlen((char *)parameters_msg);
-
 	while(CDC_Transmit_FS(parameters_msg, line_len) != USBD_OK);
 
+	HAL_GPIO_WritePin(IND_LED_G_GPIO_Port, IND_LED_G_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(IND_LED_R_GPIO_Port, IND_LED_R_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(IND_LED_B_GPIO_Port, IND_LED_B_Pin, GPIO_PIN_RESET);
+	measurement_activated = 0;
 	conv_state = ARMED;
 
+	return 1;
 }
 
 int StartMeasurement(void) {
@@ -1005,7 +1032,6 @@ void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc) {
 
 // Called when buffer is completely filled
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
-	printf("Asdf");
 	if (hadc == &hadc1){
 		adc_state[0] = END_FULL;
 	}
@@ -1020,45 +1046,65 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 	}
 }
 
-int SendData(void) {
+int SendData(char buffer_id) {
+//	// > Send the packet number
+//	unsigned char packet_num[USB_TX_HEADER_SIZE];
+//
+//	sprintf((char *)packet_num, "PktNum:%d\n", adc_packet_counter);
+//	uint16_t line_len = strlen((char *)packet_num);
+//	while(CDC_Transmit_FS(packet_num, line_len) != USBD_OK);
+
+	// > Send the ADC data
 	unsigned char tx_buffer[USB_TX_BUFFER_SIZE];
 
-	uint8_t adc_packet_counter = 0;
-
-	if(conv_state == START_FULL || conv_state == END_FULL){
-
-		// Clear header
-		for(int i = 0; i < USB_HEADER_SIZE; i++){
-			tx_buffer[i] = 0;
-		}
-		// Write header
-		sprintf((char *)tx_buffer, "PktNo:%.3d;", adc_packet_counter);
-
-		// Determine place in ADC buffer
-		unsigned int adc_buffer_start_index;
-		if(conv_state == START_FULL)
-			adc_buffer_start_index = 0;
-		else if(conv_state == END_FULL)
-			adc_buffer_start_index = ADC_BUFFER_SIZE/2;
-
-		// Offset USB tx buffer index by header length
-		unsigned int tx_start_index = USB_HEADER_SIZE;
-
-		// Iterate through all ADCs
-		for(int adc_index = 0; adc_index < MAX_CHANNEL_COUNT; adc_index++){
-
-			for(int i = 0; i < ADC_BUFFER_SIZE/2; i++){
-				tx_buffer[tx_start_index + (i*2)+1] = (uint8_t)(adc_buffers[adc_index][adc_buffer_start_index + i] & 0x00FF);
-				tx_buffer[tx_start_index + i*2] = (uint8_t)((adc_buffers[adc_index][adc_buffer_start_index + i] >> 8) & 0x00FF);
-			}
-			tx_start_index += ADC_BUFFER_SIZE;
-		}
-
-		while(CDC_Transmit_FS(tx_buffer, USB_TX_BUFFER_SIZE) != USBD_OK);
-		adc_packet_counter++;
-		conv_state = IDLE;
-
+	// Determine the ADC buffer start index for the packet
+	unsigned int adc_buffer_start_index;
+	if(buffer_id == 's'){
+		adc_buffer_start_index = 0;
 	}
+	else if(buffer_id == 'e') {
+		adc_buffer_start_index = ADC_BUFFER_SIZE/2;
+	}
+
+
+	unsigned int tx_start_index = 0;
+	// Iterate through all ADCs
+	for(int adc_index = 0; adc_index < MAX_CHANNEL_COUNT; adc_index++){
+
+		for(int i = 0; i < ADC_BUFFER_SIZE/2; i++){
+			tx_buffer[tx_start_index + (i*2)+1] = (uint8_t)(adc_buffers[adc_index][adc_buffer_start_index + i] & 0x00FF);
+			tx_buffer[tx_start_index + i*2] = (uint8_t)((adc_buffers[adc_index][adc_buffer_start_index + i] >> 8) & 0x00FF);
+		}
+		tx_start_index += ADC_BUFFER_SIZE;
+	}
+
+	while(CDC_Transmit_FS(tx_buffer, USB_TX_BUFFER_SIZE) != USBD_OK);
+	current_packet_count++;
+	for(int i = 0; i < MAX_CHANNEL_COUNT; i++){
+		 adc_state[i] = EMPTY;
+	}
+
+	return 1;
+}
+
+int ResetStates(void) {
+	  HAL_TIM_Base_Stop_IT(&htim2);
+	  HAL_ADC_Stop_DMA(&hadc1);
+	  HAL_ADC_Stop_DMA(&hadc2);
+	  HAL_ADC_Stop_DMA(&hadc3);
+	  HAL_ADC_Stop_DMA(&hadc4);
+	  memset(adc_buffers, 0, sizeof(adc_buffers));
+	  conv_state = IDLE;
+	  conv_count = 0;
+	  conv_count_reached = 0;
+	  target_packet_count = 0;
+	  current_packet_count = 0;
+	  measurement_activated = 0;
+	  HAL_GPIO_WritePin(IND_LED_G_GPIO_Port, IND_LED_G_Pin, GPIO_PIN_RESET);
+	  HAL_GPIO_WritePin(IND_LED_R_GPIO_Port, IND_LED_R_Pin, GPIO_PIN_SET);
+	  HAL_GPIO_WritePin(IND_LED_B_GPIO_Port, IND_LED_B_Pin, GPIO_PIN_SET);
+
+	  return 1;
 }
 
 

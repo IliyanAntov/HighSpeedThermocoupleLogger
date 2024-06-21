@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import *
 from scipy.optimize import curve_fit
 
 from PC.Record import Record
-from PC.SharedParameters import SharedParameters
+from PC.Parameters import Parameters
 from PlotUI import Ui_Form
 from PyQt5 import QtWidgets
 import matplotlib.pyplot as plt
@@ -227,7 +227,7 @@ class PlotLogic:
         self.ui.CancelButton.clicked.connect(self.restore_saved_parameters)
 
     def load_data(self):
-        with open(SharedParameters.record_folder_dir + self.record_file_name) as record_file:
+        with open(Parameters.record_folder_dir + self.record_file_name) as record_file:
             file_raw = record_file.read()
             self.record = jsonpickle.decode(file_raw)
 
@@ -373,15 +373,17 @@ class PlotLogic:
 
     @staticmethod
     def calculate_predicted_data(x_data, y_data, channel_parameters):
-        x_short = x_data[:channel_parameters.prediction_queue_length]
+        x_short_ms = x_data[:channel_parameters.prediction_queue_length]
+        x_short = list((x*10**(-3)) for x in x_short_ms)
+
         y_short = y_data[:channel_parameters.prediction_queue_length]
         predictions = []
 
         for data_point in y_data[channel_parameters.prediction_queue_length:]:
             t_0 = y_short[0]
-            heating_function_fixed_tau = partial(PlotLogic.heating_function, tau_ms=channel_parameters.prediction_time_constant_ms, t_0=t_0)
+            heating_function_fixed_params = partial(PlotLogic.heating_function, tau_ms=channel_parameters.prediction_time_constant_ms, t_0=t_0)
 
-            param, param_cov = curve_fit(heating_function_fixed_tau, x_short, y_short)
+            param, param_cov = curve_fit(heating_function_fixed_params, x_short, y_short)
             predictions.append(param[0])
 
             y_short.pop(0)
