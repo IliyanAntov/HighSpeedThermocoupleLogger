@@ -20,7 +20,7 @@ calculate_predictions = True
 
 
 def read_data():
-    f = open("../data/oscilloscope_data.json", "r")
+    f = open("../data/test_data/oscilloscope_data.json", "r")
     osc_data = json.load(f)
     f.close()
 
@@ -83,13 +83,13 @@ def calculate_predicted_data(x_data, y_data):
 
 
 def write_predicted_data(data_json):
-    f = open("../data/predicted_data.json", "w")
+    f = open("../data/test_data/predicted_data.json", "w")
     json.dump(data_json, f)
     f.close()
 
 
 def read_predicted_data():
-    f = open("../data/predicted_data.json", "r")
+    f = open("../data/test_data/predicted_data.json", "r")
     predicted_data = json.load(f)
     f.close()
 

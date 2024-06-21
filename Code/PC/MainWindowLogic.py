@@ -366,15 +366,6 @@ class MainWindowLogic:
                 highest_sensitivity_tc_available = channel.tc_type
         setup_string += f"TcType:{highest_sensitivity_tc_available};"
 
-        trigger_source_full = self.ui.TriggerSourceValue.currentText()
-        if "button" in trigger_source_full:
-            trigger_source_short = "btn"
-        elif "trigger 1" in trigger_source_full:
-            trigger_source_short = "ex1"
-        else:
-            trigger_source_short = "ex2"
-        setup_string += f"TrgSrc:{trigger_source_short};"
-
         setup_string += "\0"
         self.serial.write(setup_string.encode())
         print(setup_string)
@@ -482,6 +473,8 @@ class MainWindowLogic:
         self.ui.RecordsList.setItemAlignment(Qt.AlignRight)
         record_list = os.listdir(Parameters.record_folder_dir)
         for record in record_list:
+            if ".json" not in record:
+                continue
             item = QListWidgetItem(record.replace(".json", ""))
             item.setTextAlignment(Qt.AlignRight)
             self.ui.RecordsList.addItem(item)

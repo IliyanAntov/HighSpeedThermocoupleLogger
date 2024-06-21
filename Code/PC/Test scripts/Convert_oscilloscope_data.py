@@ -17,7 +17,7 @@ data_json = {
     "y_values": y_data
 }
 
-f = open("../data/oscilloscope_data.json", "w")
+f = open("../data/test_data/oscilloscope_data.json", "w")
 json.dump(data_json, f)
 f.close()
 print("Done")
