@@ -16,7 +16,7 @@ from PC.Parameters import Parameters
 from PlotLogic import PlotLogic
 
 from MainWindowUI import Ui_Form
-from PyQt5 import QtWidgets, QtTest
+from PyQt5 import QtWidgets, QtTest, QtGui
 import sys
 
 
@@ -24,6 +24,7 @@ class MainWindowLogic:
     def __init__(self):
         self.ui = Ui_Form()
         self.app = QtWidgets.QApplication(sys.argv)
+        self.app.setWindowIcon(QtGui.QIcon("UI/icon.png"))
         self.form = QtWidgets.QWidget()
         self.record = Record(number_of_channels=4)
         self.serial = None
@@ -40,6 +41,8 @@ class MainWindowLogic:
 
     def run(self):
         self.ui.setupUi(self.form)
+        self.form.setWindowTitle("High Speed Thermocouple Logger")
+
         self.ui.RecordLengthValue.setValue(self.record.length_ms)
         self.ui.RecordIntervalValue.setValue(self.record.interval_us)
 
@@ -478,6 +481,8 @@ class MainWindowLogic:
             item = QListWidgetItem(record.replace(".json", ""))
             item.setTextAlignment(Qt.AlignRight)
             self.ui.RecordsList.addItem(item)
+
+        self.ui.RecordsList.setCurrentRow(0)
 
     def view_selected_record(self):
         selected_record = self.ui.RecordsList.currentItem()
