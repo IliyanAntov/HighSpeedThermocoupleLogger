@@ -1,0 +1,165 @@
+<mxfile host="app.diagrams.net" modified="2024-06-22T15:58:39.074Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0" etag="Yfc3Qd65lDTSXs0MS5cQ" version="24.6.1" type="google">
+  <diagram name="Page-1" id="Tn8vEZOuubxeC0r17j6Q">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-42" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-1" target="G6jMkMdMMROKTBOL4Cez-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-1" value="&lt;font style=&quot;font-size: 14px;&quot;&gt;Начало&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontSize=14;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="125" y="40" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-43" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-2" target="G6jMkMdMMROKTBOL4Cez-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-2" value="Инициализация на потребителския интерфейс" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="105" y="140" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-32" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-4" target="G6jMkMdMMROKTBOL4Cez-16">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="260" y="300" />
+              <mxPoint x="260" y="75" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-33" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-4" target="G6jMkMdMMROKTBOL4Cez-19">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="260" y="300" />
+              <mxPoint x="260" y="165" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-36" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-4" target="G6jMkMdMMROKTBOL4Cez-28">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="260" y="300" />
+              <mxPoint x="260" y="255" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-37" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-4" target="G6jMkMdMMROKTBOL4Cez-30">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="260" y="300" />
+              <mxPoint x="260" y="345" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-38" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-4" target="G6jMkMdMMROKTBOL4Cez-23">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="260" y="300" />
+              <mxPoint x="260" y="435" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-39" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-4" target="G6jMkMdMMROKTBOL4Cez-25">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="260" y="300" />
+              <mxPoint x="260" y="525" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-54" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-4">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="260" y="300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-4" value="&lt;div style=&quot;font-size: 14px;&quot;&gt;Взаимодействие&lt;/div&gt;&lt;div style=&quot;font-size: 14px;&quot;&gt;с елемент от интерфейса?&lt;br style=&quot;font-size: 14px;&quot;&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Times New Roman;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=middle;horizontal=1;spacing=0;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="90" y="230" width="150" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-9" value="Бутон за връзка" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="300" y="50" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-61" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-16" target="G6jMkMdMMROKTBOL4Cez-4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="740" y="75" />
+              <mxPoint x="740" y="580" />
+              <mxPoint x="165" y="580" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-62" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-16">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="739.9999999999998" y="75" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-16" value="&lt;div&gt;Осъществяване / прекъсване&amp;nbsp;&lt;/div&gt;&lt;div&gt;на връзката с устройството&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="460" y="40" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-41" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-19" target="G6jMkMdMMROKTBOL4Cez-21">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-19" value="Изпращане на заявка за извършване на измерване към&amp;nbsp;μC" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontSize=14;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="460" y="130" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-20" value="Бутон за измерване" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="290" y="140" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-51" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-21">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="740" y="165" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-21" value="Обработване и записване на получените данни от измерването" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="600" y="130" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-22" value="&lt;div&gt;Поле за настройка на&amp;nbsp;&lt;/div&gt;&lt;div&gt;текущото измерване&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="285" y="390" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-50" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;endFill=1;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-23">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="740" y="435" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-23" value="&lt;div&gt;Отчитане на&lt;/div&gt;&lt;div&gt;новата стойност&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="460" y="400" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-24" value="&lt;div&gt;Поле за включване / &lt;br&gt;&lt;/div&gt;&lt;div&gt;настройка на канал&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="290" y="480" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-44" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-25" target="G6jMkMdMMROKTBOL4Cez-26">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-25" value="&lt;div&gt;Отчитане на&lt;/div&gt;&lt;div&gt;новата стойност&lt;br&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="460" y="490" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-53" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-26">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="740" y="525" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-26" value="Активиране / деактивиране на свързани полета от интерфейса" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="600" y="490" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-27" value="&lt;div&gt;Бутон за преглед&amp;nbsp;&lt;/div&gt;&lt;div&gt;на измерване&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="295" y="210" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-47" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;endFill=1;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-28">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="740" y="255" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-28" value="Отваряне на прозорец за преглед на измерване" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontSize=14;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="460" y="220" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-29" value="&lt;div&gt;Бутон за преименуване / &lt;br&gt;&lt;/div&gt;&lt;div&gt;изтриване на измерване&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="275" y="300" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-48" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;endFill=1;" edge="1" parent="1" source="G6jMkMdMMROKTBOL4Cez-30">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="740" y="345" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="G6jMkMdMMROKTBOL4Cez-30" value="Преименуване / изтриване на избраното измерване" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="460" y="310" width="120" height="70" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

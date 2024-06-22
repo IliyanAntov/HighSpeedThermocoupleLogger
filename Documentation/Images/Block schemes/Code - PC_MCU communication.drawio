@@ -1,0 +1,73 @@
+<mxfile host="app.diagrams.net" modified="2024-06-22T15:58:48.266Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0" etag="Dj7WtjU72DCAqunM3tWj" version="24.6.1" type="google">
+  <diagram name="Page-1" id="3_sjYTjX6hkguFpQQcgr">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="Dsg8_6QIMpOwmejjpKoG-1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="260" y="400" as="targetPoint" />
+            <mxPoint x="259.73857142857145" y="160" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-1" value="Компютърно приложение" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontSize=14;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="200" y="90" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="Dsg8_6QIMpOwmejjpKoG-2">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="540" y="400" as="targetPoint" />
+            <mxPoint x="539.7385714285715" y="160" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-2" value="Микроконтролер" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontSize=14;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="480" y="90" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-3" value="" style="endArrow=classic;html=1;rounded=0;fillColor=#f8cecc;strokeColor=#b85450;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="260" y="180" as="sourcePoint" />
+            <mxPoint x="540" y="230" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-5" value="Настройки на измерването" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=14;fontFamily=Times New Roman;rotation=10;" vertex="1" parent="1">
+          <mxGeometry x="310" y="179" width="180" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-8" value="" style="endArrow=classic;html=1;rounded=0;fillColor=#fff2cc;strokeColor=#d6b656;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="268" as="sourcePoint" />
+            <mxPoint x="260" y="318" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-9" value="&lt;div&gt;Константни параметри и&lt;/div&gt;&lt;div&gt;еднократно измервани величини&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=14;fontFamily=Times New Roman;rotation=-10;" vertex="1" parent="1">
+          <mxGeometry x="290" y="248" width="220" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-12" value="" style="endArrow=classic;html=1;rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="310" as="sourcePoint" />
+            <mxPoint x="260" y="360" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-13" value="Данни от измерването" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=14;fontFamily=Times New Roman;rotation=-10;" vertex="1" parent="1">
+          <mxGeometry x="315" y="310" width="160" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-14" value="" style="endArrow=classic;html=1;rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="320" as="sourcePoint" />
+            <mxPoint x="260" y="370" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-15" value="" style="endArrow=classic;html=1;rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="330" as="sourcePoint" />
+            <mxPoint x="260" y="380" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Dsg8_6QIMpOwmejjpKoG-16" value="" style="endArrow=classic;html=1;rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="340" as="sourcePoint" />
+            <mxPoint x="260" y="390" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
