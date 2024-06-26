@@ -968,7 +968,7 @@ int SetupMeasurement(void){
 
 
 	// Calculate the target packet number
-	target_packet_count = (record_length_ms / record_interval_us) * 1000 / (ADC_BUFFER_SIZE / 2);
+	target_packet_count = (record_length_ms * 1000.0 / record_interval_us) / (ADC_BUFFER_SIZE / 2);
 	if((int)(record_length_ms * 1000.0 / record_interval_us) % (ADC_BUFFER_SIZE / 2) != 0){
 		target_packet_count += 1;
 	}
@@ -1000,6 +1000,10 @@ int SendParameters(void) {
 }
 
 int StartMeasurement(void) {
+	HAL_GPIO_WritePin(IND_LED_G_GPIO_Port, IND_LED_G_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(IND_LED_R_GPIO_Port, IND_LED_R_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(IND_LED_B_GPIO_Port, IND_LED_B_Pin, GPIO_PIN_SET);
+
 	HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers[0], ADC_BUFFER_SIZE);
 	HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
@@ -1100,6 +1104,8 @@ int ResetStates(void) {
 	  target_packet_count = 0;
 	  current_packet_count = 0;
 	  measurement_activated = 0;
+	  current_buffer_id = 'e';
+
 	  HAL_GPIO_WritePin(IND_LED_G_GPIO_Port, IND_LED_G_Pin, GPIO_PIN_RESET);
 	  HAL_GPIO_WritePin(IND_LED_R_GPIO_Port, IND_LED_R_Pin, GPIO_PIN_SET);
 	  HAL_GPIO_WritePin(IND_LED_B_GPIO_Port, IND_LED_B_Pin, GPIO_PIN_SET);

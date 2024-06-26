@@ -14,8 +14,8 @@
 ../Core/Src/main.c:897:5:SetupMeasurement	8
 ../Core/Src/main.c:980:5:SendParameters	2
 ../Core/Src/main.c:1002:5:StartMeasurement	1
-../Core/Src/main.c:1018:6:HAL_ADC_ConvHalfCpltCallback	5
-../Core/Src/main.c:1034:6:HAL_ADC_ConvCpltCallback	5
-../Core/Src/main.c:1049:5:SendData	7
-../Core/Src/main.c:1090:5:ResetStates	1
-../Core/Src/main.c:1117:6:Error_Handler	1
+../Core/Src/main.c:1022:6:HAL_ADC_ConvHalfCpltCallback	5
+../Core/Src/main.c:1038:6:HAL_ADC_ConvCpltCallback	5
+../Core/Src/main.c:1053:5:SendData	7
+../Core/Src/main.c:1094:5:ResetStates	1
+../Core/Src/main.c:1123:6:Error_Handler	1

@@ -10,6 +10,8 @@ import serial.tools.list_ports
 from PyQt5.QtCore import QRegularExpression, Qt, QSize, QEventLoop, QTimer, pyqtSignal, QObject
 from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import *
+from PyQt5.uic.properties import QtCore
+from PyQt5.QtWidgets import QApplication
 
 from PC.Record import Record
 from PC.Parameters import Parameters
@@ -319,7 +321,7 @@ class MainWindowLogic:
 
             return
 
-        number_of_steps = 4
+        number_of_steps = 5
         progress_dialog = QProgressDialog("Preparing...", "Cancel", 0, number_of_steps + 1, self.form)
         progress_dialog.overrideWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
         progress_dialog.setWindowModality(Qt.WindowModal)
@@ -333,22 +335,24 @@ class MainWindowLogic:
         self.measurement_send_setup()
         progress_dialog.setLabelText("Receiving parameters from MCU...")
         progress_dialog.setValue(2)
-        try:
-            self.measurement_receive_parameters()
-        except:
+        if not self.measurement_receive_parameters():
             print("Error")
-            progress_dialog.setValue(5)
+            progress_dialog.setValue(6)
             self.form.setEnabled(True)
             return
-        progress_dialog.setLabelText("Receiving data from MCU...")
+
+        progress_dialog.setLabelText("Waiting for trigger signal...")
         progress_dialog.setValue(3)
+        while not self.serial.inWaiting():
+            QApplication.processEvents()
+        progress_dialog.setLabelText("Receiving data from MCU...")
+        progress_dialog.setValue(4)
         self.measurement_receive_data()
         progress_dialog.setLabelText("Saving record...")
-        progress_dialog.setValue(4)
-        # TODO: remove this comment
+        progress_dialog.setValue(5)
         self.measurement_save_record()
         progress_dialog.setLabelText("Done")
-        progress_dialog.setValue(5)
+        progress_dialog.setValue(6)
 
         self.form.setEnabled(True)
 
@@ -376,9 +380,17 @@ class MainWindowLogic:
         return
 
     def measurement_receive_parameters(self):
+        while not self.serial.inWaiting():
+            QApplication.processEvents()
+
         parameters_raw = self.serial.readline(Parameters.usb_header_size)
-        parameters = parameters_raw.decode().rstrip("\n")
+        try:
+            parameters = parameters_raw.decode().rstrip("\n")
+        except UnicodeDecodeError:
+            self.serial.read(self.serial.inWaiting())
+            return False
         parameters_split = parameters.split(";")
+
         for parameter in parameters_split:
             parameter_name_value = parameter.split(":")
             if parameter_name_value[0] == "CjcTmp":
@@ -394,19 +406,19 @@ class MainWindowLogic:
             elif parameter_name_value[0] == "PktCnt":
                 self.record.target_packet_count = int(parameter_name_value[1])
 
-        return
+        return True
 
     def measurement_receive_data(self):
         # Receive data from MCU
-
-        print(f"Buffers to recieve: {self.record.target_packet_count}, usb buffer size: {self.record.usb_buffer_size}")
+        print(f"Buffers to receive: {self.record.target_packet_count}, usb buffer size: {self.record.usb_buffer_size}")
         buffers = []
         for i in range(self.record.target_packet_count):
-            while not self.serial.inWaiting():
-                pass
             buffers.extend([self.serial.read(self.record.usb_buffer_size)])
 
+        last_buffer = False
         for buffer in buffers:
+            if buffer == buffers[-1]:
+                last_buffer = True
 
             adc_data_split = []
             for j in range(self.record.num_of_channels):
@@ -417,6 +429,16 @@ class MainWindowLogic:
                 if not self.record.channels[index].available:
                     index += 1
                     continue
+
+                # TODO: check
+                if last_buffer:
+                    total_data_points = (self.record.length_ms * 1000.0) / self.record.interval_us
+                    received_data_points = self.record.target_packet_count * (self.record.adc_buffer_size / 2)
+                    extra_data_points = math.ceil(received_data_points - total_data_points)
+                    print(extra_data_points)
+                    if extra_data_points != 0:
+                        last_valid_index = int((self.record.adc_buffer_size / 2) - extra_data_points)
+                        channel_data = channel_data[:(last_valid_index * 2)]
 
                 for j in range(0, (len(channel_data) - 1), 2):
                     adc_reading_num = (channel_data[j] << 8) + channel_data[j + 1]
@@ -480,7 +502,13 @@ class MainWindowLogic:
                 continue
             item = QListWidgetItem(record.replace(".json", ""))
             item.setTextAlignment(Qt.AlignRight)
-            self.ui.RecordsList.addItem(item)
+
+            date_in_name = record.split("-")[0]
+            try:
+                int(date_in_name)
+                self.ui.RecordsList.insertItem(0, item)
+            except ValueError:
+                self.ui.RecordsList.addItem(item)
 
         self.ui.RecordsList.setCurrentRow(0)
 
