@@ -43,8 +43,7 @@ enum CONV_STATE {
   PARAMETERS_SET,
   ARMED,
   MEASURING,
-  DONE,
-  SENDING
+  DONE
 };
 
 enum ADC_BUFFER_STATE {
@@ -117,9 +116,11 @@ void Error_Handler(void);
 #define INAMP_GAIN ((9900 / 54.9) + 1)
 
 #define MAX_CHANNEL_COUNT 4
+#define PARAMETERS_MSG_SIZE 256
+#define USB_TX_HEADER_SIZE 64
 #define ADC_BUFFER_SIZE 1000									// uint16
-#define USB_TX_BUFFER_SIZE ADC_BUFFER_SIZE * MAX_CHANNEL_COUNT	// uint8
-#define USB_TX_HEADER_SIZE 256
+#define USB_TAIL_SIZE 64
+#define USB_BUFFER_SIZE (USB_TX_HEADER_SIZE + ADC_BUFFER_SIZE + USB_TAIL_SIZE)
 #define USB_RX_BUFFER_SIZE 256 									// uint8
 #define CFG_VAR_SIZE 64
 /* USER CODE END Private defines */

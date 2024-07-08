@@ -63,6 +63,7 @@ TIM_HandleTypeDef htim2;
 int current_packet_count = 0;
 int target_packet_count = 0;
 int dropped_packet_count = 0;
+unsigned char usb_buffer[USB_BUFFER_SIZE];
 
 uint16_t adc_buffers[MAX_CHANNEL_COUNT][ADC_BUFFER_SIZE];
 int8_t rx_buffer[USB_RX_BUFFER_SIZE];
@@ -78,7 +79,7 @@ volatile float applied_voltage_offset = 0;		// [V]
 uint16_t record_length_ms = 100;
 uint16_t record_interval_us = 10;
 char tc_type = 'J';
-enum ADC_BUFFER_STATE adc_state[MAX_CHANNEL_COUNT] = {EMPTY, EMPTY, EMPTY, EMPTY};
+enum ADC_BUFFER_STATE adc_states[MAX_CHANNEL_COUNT] = {EMPTY, EMPTY, EMPTY, EMPTY};
 
 volatile int conv_count_reached = 0;
 volatile int measurement_activated = 0;
@@ -169,7 +170,7 @@ int InterpretVariable(char name[CFG_VAR_SIZE], char value[CFG_VAR_SIZE]);
 int SetupMeasurement(void);
 int SendParameters(void);
 int StartMeasurement(void);
-int SendData(char buffer_id);
+int SendData(int adc_index);
 int ResetStates(void);
 /* USER CODE END PFP */
 
@@ -241,41 +242,17 @@ int main(void)
 		  StartMeasurement();
 	  }
 	  if(conv_state == MEASURING){
-		 if(adc_state[0] == START_FULL &&
-			adc_state[1] == START_FULL &&
-			adc_state[2] == START_FULL &&
-			adc_state[3] == START_FULL) {
-			 if(current_buffer_id == 's') {
-				 dropped_packet_count++;
+		 for(int i = 0; i < MAX_CHANNEL_COUNT; i++){
+			 if(adc_states[i] != EMPTY){
+				 SendData(i);
 			 }
-			 current_buffer_id = 's';
-			 SendData(current_buffer_id);
-		 }
-		 else if(adc_state[0] == END_FULL &&
-				 adc_state[1] == END_FULL &&
-				 adc_state[2] == END_FULL &&
-				 adc_state[3] == END_FULL) {
-			 if(current_buffer_id == 'e') {
-				 dropped_packet_count++;
-			 }
-			 current_buffer_id = 'e';
-			 SendData(current_buffer_id);
 		 }
 
-		 if(conv_count_reached && current_packet_count >= (target_packet_count - 1)) {
+		 if(conv_count_reached) {
 			 conv_state = DONE;
 		 }
 	  }
 	  if(conv_state == DONE){
-		  if(current_packet_count < target_packet_count){
-			  if(current_buffer_id == 's'){
-				  SendData('e');
-			  }
-			  else {
-				  SendData('s');
-			  }
-		  }
-
 		  ResetStates();
 	  }
 
@@ -978,14 +955,14 @@ int SetupMeasurement(void){
 }
 
 int SendParameters(void) {
-	unsigned char parameters_msg[USB_TX_HEADER_SIZE];
+	unsigned char parameters_msg[PARAMETERS_MSG_SIZE];
 
-	sprintf((char *)parameters_msg, "CjcTmp:%.2f;AlgRfr:%.3f;AplOfs:%.4f;AdcBuf:%d;UsbBuf:%d;PktCnt:%d\n",
+	sprintf((char *)parameters_msg, "CjcTmp:%.2f;AlgRfr:%.3f;AplOfs:%.4f;HdrSiz:%d;AdcBuf:%d;PktCnt:%d\n",
 									cold_junction_temp,
 									analog_reference_voltage,
 									applied_voltage_offset,
+									USB_TX_HEADER_SIZE,
 									ADC_BUFFER_SIZE,
-									USB_TX_BUFFER_SIZE,
 									target_packet_count);
 	uint16_t line_len = strlen((char *)parameters_msg);
 	while(CDC_Transmit_FS(parameters_msg, line_len) != USBD_OK);
@@ -1006,12 +983,12 @@ int StartMeasurement(void) {
 
 	HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers[0], ADC_BUFFER_SIZE);
-	HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
-	HAL_ADC_Start_DMA(&hadc2, (uint32_t*)adc_buffers[1], ADC_BUFFER_SIZE);
-	HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED);
-	HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc_buffers[2], ADC_BUFFER_SIZE);
-	HAL_ADCEx_Calibration_Start(&hadc4, ADC_SINGLE_ENDED);
-	HAL_ADC_Start_DMA(&hadc4, (uint32_t*)adc_buffers[3], ADC_BUFFER_SIZE);
+//	HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
+//	HAL_ADC_Start_DMA(&hadc2, (uint32_t*)adc_buffers[1], ADC_BUFFER_SIZE);
+//	HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED);
+//	HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc_buffers[2], ADC_BUFFER_SIZE);
+//	HAL_ADCEx_Calibration_Start(&hadc4, ADC_SINGLE_ENDED);
+//	HAL_ADC_Start_DMA(&hadc4, (uint32_t*)adc_buffers[3], ADC_BUFFER_SIZE);
 	HAL_TIM_Base_Start_IT(&htim2);
 	conv_state = MEASURING;
 
@@ -1021,72 +998,64 @@ int StartMeasurement(void) {
 // Called when first half of buffer is filled
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc) {
 	if (hadc == &hadc1){
-		adc_state[0] = START_FULL;
+		adc_states[0] = START_FULL;
 	}
 	else if(hadc == &hadc2){
-		adc_state[1] = START_FULL;
+		adc_states[1] = START_FULL;
 	}
 	else if(hadc == &hadc3){
-		adc_state[2] = START_FULL;
+		adc_states[2] = START_FULL;
 	}
 	else if(hadc == &hadc4){
-		adc_state[3] = START_FULL;
+		adc_states[3] = START_FULL;
 	}
 }
 
 // Called when buffer is completely filled
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 	if (hadc == &hadc1){
-		adc_state[0] = END_FULL;
+		adc_states[0] = END_FULL;
 	}
 	else if(hadc == &hadc2){
-		adc_state[1] = END_FULL;
+		adc_states[1] = END_FULL;
 	}
 	else if(hadc == &hadc3){
-		adc_state[2] = END_FULL;
+		adc_states[2] = END_FULL;
 	}
 	else if(hadc == &hadc4){
-		adc_state[3] = END_FULL;
+		adc_states[3] = END_FULL;
 	}
 }
 
-int SendData(char buffer_id) {
-//	// > Send the packet number
-//	unsigned char packet_num[USB_TX_HEADER_SIZE];
-//
-//	sprintf((char *)packet_num, "PktNum:%d\n", adc_packet_counter);
-//	uint16_t line_len = strlen((char *)packet_num);
-//	while(CDC_Transmit_FS(packet_num, line_len) != USBD_OK);
+int SendData(int adc_index) {
+	unsigned int usb_buffer_index = 0;
+	// > Create the USB buffer header
+	sprintf((char *)usb_buffer + usb_buffer_index, "AdcInd:%d;PktNum:%03d!!!", adc_index, current_packet_count);
+	usb_buffer_index += 22;
 
-	// > Send the ADC data
-	unsigned char tx_buffer[USB_TX_BUFFER_SIZE];
-
-	// Determine the ADC buffer start index for the packet
+	// > Create the USB buffer data
 	unsigned int adc_buffer_start_index;
-	if(buffer_id == 's'){
+	if(adc_states[adc_index] == START_FULL){
 		adc_buffer_start_index = 0;
 	}
-	else if(buffer_id == 'e') {
+	else if(adc_states[adc_index] == END_FULL){
 		adc_buffer_start_index = ADC_BUFFER_SIZE/2;
 	}
 
-
-	unsigned int tx_start_index = 0;
-	// Iterate through all ADCs
-	for(int adc_index = 0; adc_index < MAX_CHANNEL_COUNT; adc_index++){
-
-		for(int i = 0; i < ADC_BUFFER_SIZE/2; i++){
-			tx_buffer[tx_start_index + (i*2)+1] = (uint8_t)(adc_buffers[adc_index][adc_buffer_start_index + i] & 0x00FF);
-			tx_buffer[tx_start_index + i*2] = (uint8_t)((adc_buffers[adc_index][adc_buffer_start_index + i] >> 8) & 0x00FF);
-		}
-		tx_start_index += ADC_BUFFER_SIZE;
+	for(int i = 0; i < ADC_BUFFER_SIZE/2; i++){
+		usb_buffer[usb_buffer_index + (i*2) + 1] = (uint8_t)(adc_buffers[adc_index][adc_buffer_start_index + i] & 0x00FF);
+		usb_buffer[usb_buffer_index + i*2] = (uint8_t)((adc_buffers[adc_index][adc_buffer_start_index + i] >> 8) & 0x00FF);
 	}
+	usb_buffer_index += ADC_BUFFER_SIZE;
 
-	while(CDC_Transmit_FS(tx_buffer, USB_TX_BUFFER_SIZE) != USBD_OK);
+	// > Create the USB buffer end
+	sprintf((char *)usb_buffer + usb_buffer_index, "!!!Drop:%02dEOP", dropped_packet_count);
+
+	unsigned int total_size = usb_buffer_index + 13;
+	while(CDC_Transmit_FS(usb_buffer, total_size) != USBD_OK);
+
 	current_packet_count++;
-	for(int i = 0; i < MAX_CHANNEL_COUNT; i++){
-		 adc_state[i] = EMPTY;
-	}
+	adc_states[adc_index] = EMPTY;
 
 	return 1;
 }

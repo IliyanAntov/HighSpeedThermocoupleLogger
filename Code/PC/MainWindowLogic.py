@@ -350,6 +350,7 @@ class MainWindowLogic:
         self.measurement_receive_data()
         progress_dialog.setLabelText("Saving record...")
         progress_dialog.setValue(5)
+        # TODO
         self.measurement_save_record()
         progress_dialog.setLabelText("Done")
         progress_dialog.setValue(6)
@@ -393,65 +394,113 @@ class MainWindowLogic:
 
         for parameter in parameters_split:
             parameter_name_value = parameter.split(":")
-            if parameter_name_value[0] == "CjcTmp":
-                self.record.cold_junction_temperature = float(parameter_name_value[1])
-            elif parameter_name_value[0] == "AlgRfr":
-                self.record.analog_reference_voltage = float(parameter_name_value[1])
-            elif parameter_name_value[0] == "AplOfs":
-                self.record.applied_offset_voltage = float(parameter_name_value[1])
-            elif parameter_name_value[0] == "AdcBuf":
-                self.record.adc_buffer_size = int(parameter_name_value[1])
-            elif parameter_name_value[0] == "UsbBuf":
-                self.record.usb_buffer_size = int(parameter_name_value[1])
-            elif parameter_name_value[0] == "PktCnt":
-                self.record.target_packet_count = int(parameter_name_value[1])
+            parameter_name = parameter_name_value[0]
+            parameter_value = parameter_name_value[1]
+
+            if parameter_name == "CjcTmp":
+                self.record.cold_junction_temperature = float(parameter_value)
+            elif parameter_name == "AlgRfr":
+                self.record.analog_reference_voltage = float(parameter_value)
+            elif parameter_name == "AplOfs":
+                self.record.applied_offset_voltage = float(parameter_value)
+            elif parameter_name == "HdrSiz":
+                self.record.header_size = int(parameter_value)
+            elif parameter_name == "AdcBuf":
+                self.record.adc_buffer_size = int(parameter_value)
+            elif parameter_name == "PktCnt":
+                self.record.target_packet_count = int(parameter_value)
 
         return True
 
     def measurement_receive_data(self):
+        print(f"Buffers to receive: {self.record.target_packet_count}")
+
         # Receive data from MCU
-        print(f"Buffers to receive: {self.record.target_packet_count}, usb buffer size: {self.record.usb_buffer_size}")
-        buffers = []
+        buffers = {}
+        adc_index = 0
+        previous_package_num = 0
         for i in range(self.record.target_packet_count):
-            buffers.extend([self.serial.read(self.record.usb_buffer_size)])
+            # usb_packet = self.serial.read_until("EOP".encode())
+            usb_packet = self.serial.read(1032)
+        #     usb_packet_split = usb_packet.split("!!!".encode())
+        #
+        #     usb_header = usb_packet_split[0].decode()
+        #     usb_data = usb_packet_split[1]
+        #     usb_tail = usb_packet_split[2].decode().rstrip("EOP")
+        #
+        #     usb_header_split = usb_header.split(";")
+        #     for parameter in usb_header_split:
+        #         parameter_name_value = parameter.split(":")
+        #         parameter_name = parameter_name_value[0]
+        #         parameter_value = parameter_name_value[1]
+        #
+        #         if parameter_name == "AdcInd":
+        #             adc_index = int(parameter_value)
+        #         elif parameter_name == "PktNum":
+        #             package_num = int(parameter_value)
+        #             if package_num == 0:
+        #                 buffers[adc_index] = []
+        #             elif package_num != (previous_package_num + 1):
+        #                 print("Warning! Dropped package detected!")
+        #             previous_package_num = package_num
+        #
+        #     buffers[adc_index].extend(usb_data)
+        #
+        # # Process received data
+        # for adc_index, buffer in buffers.items():
+        #     for i in range(0, (len(buffer) - 1), 2):
+        #         adc_reading_num = (buffer[i] << 8) + buffer[i + 1]
+        #         adc_reading_voltage = adc_reading_num / pow(2, 16) * self.record.analog_reference_voltage
+        #         temperature = self.calculate_thermocouple_temperature(measured_voltage=adc_reading_voltage,
+        #                                                               tc_type=self.record.channels[adc_index].tc_type)
+        #         if temperature is None:
+        #             temperature = 0
+        #         self.record.channels[adc_index].raw_data.append(temperature)
 
-        last_buffer = False
-        for buffer in buffers:
-            if buffer == buffers[-1]:
-                last_buffer = True
-
-            adc_data_split = []
-            for j in range(self.record.num_of_channels):
-                adc_data_split.append(buffer[(self.record.adc_buffer_size * j):(self.record.adc_buffer_size * (j + 1))])
-
-            index = 0
-            for channel_data in adc_data_split:
-                if not self.record.channels[index].available:
-                    index += 1
-                    continue
-
-                # TODO: check
-                if last_buffer:
-                    total_data_points = (self.record.length_ms * 1000.0) / self.record.interval_us
-                    received_data_points = self.record.target_packet_count * (self.record.adc_buffer_size / 2)
-                    extra_data_points = math.ceil(received_data_points - total_data_points)
-                    print(extra_data_points)
-                    if extra_data_points != 0:
-                        last_valid_index = int((self.record.adc_buffer_size / 2) - extra_data_points)
-                        channel_data = channel_data[:(last_valid_index * 2)]
-
-                for j in range(0, (len(channel_data) - 1), 2):
-                    adc_reading_num = (channel_data[j] << 8) + channel_data[j + 1]
-                    adc_reading_voltage = adc_reading_num / pow(2, 16) * self.record.analog_reference_voltage
-                    temperature = self.calculate_thermocouple_temperature(measured_voltage=adc_reading_voltage,
-                                                                          tc_type=self.record.channels[index].tc_type)
-
-                    self.record.channels[index].raw_data.append(temperature)
-
-                index += 1
-
-        if self.serial.inWaiting():
-            self.serial.read(self.serial.inWaiting())
+        # print(temperatures)
+        # # Receive data from MCU
+        # print(f"Buffers to receive: {self.record.target_packet_count}, usb buffer size: {self.record.usb_buffer_size}")
+        # buffers = []
+        # for i in range(self.record.target_packet_count):
+        #     buffers.extend([self.serial.read(self.record.usb_buffer_size)])
+        #
+        # last_buffer = False
+        # for buffer in buffers:
+        #     if buffer == buffers[-1]:
+        #         last_buffer = True
+        #
+        #     adc_data_split = []
+        #     for j in range(self.record.num_of_channels):
+        #         adc_data_split.append(buffer[(self.record.adc_buffer_size * j):(self.record.adc_buffer_size * (j + 1))])
+        #
+        #     index = 0
+        #     for channel_data in adc_data_split:
+        #         if not self.record.channels[index].available:
+        #             index += 1
+        #             continue
+        #
+        #         # TODO: check
+        #         if last_buffer:
+        #             total_data_points = (self.record.length_ms * 1000.0) / self.record.interval_us
+        #             received_data_points = self.record.target_packet_count * (self.record.adc_buffer_size / 2)
+        #             extra_data_points = math.ceil(received_data_points - total_data_points)
+        #             print(extra_data_points)
+        #             if extra_data_points != 0:
+        #                 last_valid_index = int((self.record.adc_buffer_size / 2) - extra_data_points)
+        #                 channel_data = channel_data[:(last_valid_index * 2)]
+        #
+        #         for j in range(0, (len(channel_data) - 1), 2):
+        #             adc_reading_num = (channel_data[j] << 8) + channel_data[j + 1]
+        #             adc_reading_voltage = adc_reading_num / pow(2, 16) * self.record.analog_reference_voltage
+        #             temperature = self.calculate_thermocouple_temperature(measured_voltage=adc_reading_voltage,
+        #                                                                   tc_type=self.record.channels[index].tc_type)
+        #
+        #             self.record.channels[index].raw_data.append(temperature)
+        #
+        #         index += 1
+        #
+        # if self.serial.inWaiting():
+        #     self.serial.read(self.serial.inWaiting())
         return
 
     def calculate_thermocouple_temperature(self, measured_voltage, tc_type):
