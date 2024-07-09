@@ -36,13 +36,14 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-enum CONV_STATE {
+enum PROG_STATE {
   IDLE,
   CFG_RECEIVED,
   CFG_INTERPRETED,
   PARAMETERS_SET,
   ARMED,
   MEASURING,
+  REPORTING,
   DONE
 };
 
@@ -117,11 +118,10 @@ void Error_Handler(void);
 
 #define MAX_CHANNEL_COUNT 4
 #define PARAMETERS_MSG_SIZE 256
-#define USB_TX_HEADER_SIZE 64
+#define REPORT_MSG_SIZE 256
 #define ADC_BUFFER_SIZE 1000									// uint16
-#define USB_TAIL_SIZE 64
-#define USB_BUFFER_SIZE (USB_TX_HEADER_SIZE + ADC_BUFFER_SIZE + USB_TAIL_SIZE)
-#define USB_RX_BUFFER_SIZE 256 									// uint8
+#define USB_BUFFER_SIZE ADC_BUFFER_SIZE * MAX_CHANNEL_COUNT		// uint8
+#define USB_RX_BUFFER_SIZE 256
 #define CFG_VAR_SIZE 64
 /* USER CODE END Private defines */
 

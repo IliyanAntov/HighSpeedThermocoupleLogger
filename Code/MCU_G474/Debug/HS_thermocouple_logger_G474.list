@@ -474,7 +474,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  // Wait for instructions
-	  if(conv_state == CFG_RECEIVED){
+	  if(prog_state == CFG_RECEIVED){
  800060e:	4b40      	ldr	r3, [pc, #256]	; (8000710 <main+0x134>)
  8000610:	781b      	ldrb	r3, [r3, #0]
  8000612:	b2db      	uxtb	r3, r3
@@ -483,7 +483,7 @@ int main(void)
 		  InterpretConfig();
  8000618:	f000 fc3e 	bl	8000e98 <InterpretConfig>
 	  }
-	  if(conv_state == CFG_INTERPRETED){
+	  if(prog_state == CFG_INTERPRETED){
  800061c:	4b3c      	ldr	r3, [pc, #240]	; (8000710 <main+0x134>)
  800061e:	781b      	ldrb	r3, [r3, #0]
  8000620:	b2db      	uxtb	r3, r3
@@ -492,7 +492,7 @@ int main(void)
 		  SetupMeasurement();
  8000626:	f000 fd53 	bl	80010d0 <SetupMeasurement>
 	  }
-	  if(conv_state == ARMED){
+	  if(prog_state == ARMED){
  800062a:	4b39      	ldr	r3, [pc, #228]	; (8000710 <main+0x134>)
  800062c:	781b      	ldrb	r3, [r3, #0]
  800062e:	b2db      	uxtb	r3, r3
@@ -501,7 +501,7 @@ int main(void)
 		  StartMeasurement();
  8000634:	f000 fd80 	bl	8001138 <StartMeasurement>
 	  }
-	  if(conv_state == MEASURING){
+	  if(prog_state == MEASURING){
  8000638:	4b35      	ldr	r3, [pc, #212]	; (8000710 <main+0x134>)
  800063a:	781b      	ldrb	r3, [r3, #0]
  800063c:	b2db      	uxtb	r3, r3
@@ -601,7 +601,7 @@ int main(void)
  80006ca:	f003 fddb 	bl	8004284 <HAL_GPIO_TogglePin>
 		 }
 	  }
-	  if(conv_state == DONE){
+	  if(prog_state == DONE){
  80006ce:	4b10      	ldr	r3, [pc, #64]	; (8000710 <main+0x134>)
  80006d0:	781b      	ldrb	r3, [r3, #0]
  80006d2:	b2db      	uxtb	r3, r3
@@ -627,7 +627,7 @@ int main(void)
  80006fa:	2100      	movs	r1, #0
  80006fc:	480c      	ldr	r0, [pc, #48]	; (8000730 <main+0x154>)
  80006fe:	f00c fdd0 	bl	800d2a2 <memset>
-		  conv_state = IDLE;
+		  prog_state = IDLE;
  8000702:	4b03      	ldr	r3, [pc, #12]	; (8000710 <main+0x134>)
  8000704:	2200      	movs	r2, #0
  8000706:	701a      	strb	r2, [r3, #0]
@@ -635,7 +635,7 @@ int main(void)
  8000708:	4b0a      	ldr	r3, [pc, #40]	; (8000734 <main+0x158>)
  800070a:	2200      	movs	r2, #0
  800070c:	601a      	str	r2, [r3, #0]
-	  if(conv_state == CFG_RECEIVED){
+	  if(prog_state == CFG_RECEIVED){
  800070e:	e77e      	b.n	800060e <main+0x32>
  8000710:	200044d4 	.word	0x200044d4
  8000714:	200044e4 	.word	0x200044e4
@@ -2116,7 +2116,7 @@ int InterpretConfig(void) {
 		}
 	}
 
-	conv_state = CFG_INTERPRETED;
+	prog_state = CFG_INTERPRETED;
  8000fd4:	4b04      	ldr	r3, [pc, #16]	; (8000fe8 <InterpretConfig+0x150>)
  8000fd6:	2202      	movs	r2, #2
  8000fd8:	701a      	strb	r2, [r3, #0]
@@ -2291,7 +2291,7 @@ int SetupMeasurement(void){
 
 	// Calculate and set DAC value
 
-	conv_state = ARMED;
+	prog_state = ARMED;
  8001112:	4b08      	ldr	r3, [pc, #32]	; (8001134 <SetupMeasurement+0x64>)
  8001114:	2203      	movs	r2, #3
  8001116:	701a      	strb	r2, [r3, #0]
@@ -2352,7 +2352,7 @@ int StartMeasurement(void) {
 	HAL_TIM_Base_Start_IT(&htim2);
  800118c:	480c      	ldr	r0, [pc, #48]	; (80011c0 <StartMeasurement+0x88>)
  800118e:	f005 fe73 	bl	8006e78 <HAL_TIM_Base_Start_IT>
-	conv_state = MEASURING;
+	prog_state = MEASURING;
  8001192:	4b0c      	ldr	r3, [pc, #48]	; (80011c4 <StartMeasurement+0x8c>)
  8001194:	2204      	movs	r2, #4
  8001196:	701a      	strb	r2, [r3, #0]
@@ -3664,7 +3664,7 @@ void TIM2_IRQHandler(void)
  80018da:	681b      	ldr	r3, [r3, #0]
  80018dc:	429a      	cmp	r2, r3
  80018de:	dd02      	ble.n	80018e6 <TIM2_IRQHandler+0x26>
-	  conv_state = DONE;
+	  prog_state = DONE;
  80018e0:	4b05      	ldr	r3, [pc, #20]	; (80018f8 <TIM2_IRQHandler+0x38>)
  80018e2:	2205      	movs	r2, #5
  80018e4:	701a      	strb	r2, [r3, #0]
@@ -30897,7 +30897,7 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
  800c6d6:	6878      	ldr	r0, [r7, #4]
  800c6d8:	f000 fde3 	bl	800d2a2 <memset>
 
-  conv_state = CFG_RECEIVED;
+  prog_state = CFG_RECEIVED;
  800c6dc:	4b05      	ldr	r3, [pc, #20]	; (800c6f4 <CDC_Receive_FS+0x58>)
  800c6de:	2201      	movs	r2, #1
  800c6e0:	701a      	strb	r2, [r3, #0]

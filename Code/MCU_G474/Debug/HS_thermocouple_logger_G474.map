@@ -6470,9 +6470,9 @@ LOAD C:/ST/STM32CubeIDE_1.13.1/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.ext
  .bss.rx_buffer
                 0x0000000020004494       0x40 ./Core/Src/main.o
                 0x0000000020004494                rx_buffer
- .bss.conv_state
+ .bss.prog_state
                 0x00000000200044d4        0x1 ./Core/Src/main.o
-                0x00000000200044d4                conv_state
+                0x00000000200044d4                prog_state
  *fill*         0x00000000200044d5        0x3 
  .bss.target_conv_count
                 0x00000000200044d8        0x4 ./Core/Src/main.o

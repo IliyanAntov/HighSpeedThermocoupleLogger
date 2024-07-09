@@ -2,7 +2,7 @@ class Parameters:
     record_folder_dir = "./data/"
     device_vid = 0x0483
     device_pid = 0x5740
-    usb_header_size = 256
+    service_msg_size = 256
 
     inamp_gain = ((9900 / 54.9) + 1)
     voltage_to_temp = {

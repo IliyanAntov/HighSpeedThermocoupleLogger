@@ -61,7 +61,7 @@ TIM_HandleTypeDef htim2;
 uint16_t adc_buffers[MAX_CHANNEL_COUNT][ADC_BUFFER_SIZE];
 int8_t rx_buffer[USB_RX_BUFFER_SIZE];
 
-volatile enum CONV_STATE conv_state = IDLE;
+volatile enum PROG_STATE prog_state = IDLE;
 volatile int target_conv_count = 0;
 volatile int conv_count = 0;
 
@@ -146,16 +146,16 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  // Wait for instructions
-	  if(conv_state == CFG_RECEIVED){
+	  if(prog_state == CFG_RECEIVED){
 		  InterpretConfig();
 	  }
-	  if(conv_state == CFG_INTERPRETED){
+	  if(prog_state == CFG_INTERPRETED){
 		  SetupMeasurement();
 	  }
-	  if(conv_state == ARMED){
+	  if(prog_state == ARMED){
 		  StartMeasurement();
 	  }
-	  if(conv_state == MEASURING){
+	  if(prog_state == MEASURING){
 		 if(adc_state[0] == START_FULL &&
 			adc_state[1] == START_FULL &&
 			adc_state[2] == START_FULL &&
@@ -175,14 +175,14 @@ int main(void)
 			 HAL_GPIO_TogglePin(TEST_OUT2_GPIO_Port, TEST_OUT2_Pin);
 		 }
 	  }
-	  if(conv_state == DONE){
+	  if(prog_state == DONE){
 		  HAL_TIM_Base_Stop_IT(&htim2);
 		  HAL_ADC_Stop_DMA(&hadc1);
 		  HAL_ADC_Stop_DMA(&hadc2);
 		  HAL_ADC_Stop_DMA(&hadc3);
 		  HAL_ADC_Stop_DMA(&hadc4);
 		  memset(adc_buffers, 0, sizeof(adc_buffers));
-		  conv_state = IDLE;
+		  prog_state = IDLE;
 		  conv_count = 0;
 	  }
 
@@ -730,7 +730,7 @@ int InterpretConfig(void) {
 		}
 	}
 
-	conv_state = CFG_INTERPRETED;
+	prog_state = CFG_INTERPRETED;
 	return 1;
 }
 
@@ -767,7 +767,7 @@ int SetupMeasurement(void){
 
 	// Calculate and set DAC value
 
-	conv_state = ARMED;
+	prog_state = ARMED;
 	return 1;
 }
 
@@ -781,7 +781,7 @@ int StartMeasurement(void) {
 	HAL_ADCEx_Calibration_Start(&hadc4, ADC_SINGLE_ENDED);
 	HAL_ADC_Start_DMA(&hadc4, (uint32_t*)adc_buffers[3], ADC_BUFFER_SIZE);
 	HAL_TIM_Base_Start_IT(&htim2);
-	conv_state = MEASURING;
+	prog_state = MEASURING;
 
 	return 1;
 }
@@ -824,7 +824,7 @@ int SendData(void) {
 
 	uint8_t adc_packet_counter = 0;
 
-	if(conv_state == START_FULL || conv_state == END_FULL){
+	if(prog_state == START_FULL || prog_state == END_FULL){
 
 		// Clear header
 		for(int i = 0; i < USB_HEADER_SIZE; i++){
@@ -835,9 +835,9 @@ int SendData(void) {
 
 		// Determine place in ADC buffer
 		unsigned int adc_buffer_start_index;
-		if(conv_state == START_FULL)
+		if(prog_state == START_FULL)
 			adc_buffer_start_index = 0;
-		else if(conv_state == END_FULL)
+		else if(prog_state == END_FULL)
 			adc_buffer_start_index = ADC_BUFFER_SIZE/2;
 
 		// Offset USB tx buffer index by header length
@@ -855,7 +855,7 @@ int SendData(void) {
 
 		while(CDC_Transmit_FS(tx_buffer, USB_TX_BUFFER_SIZE) != USBD_OK);
 		adc_packet_counter++;
-		conv_state = IDLE;
+		prog_state = IDLE;
 
 	}
 }

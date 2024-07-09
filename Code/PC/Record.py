@@ -9,7 +9,6 @@ class Record:
         self.analog_reference_voltage = 0
         self.applied_offset_voltage = 0
         self.number_of_conversions = 0
-        self.header_size = 0
         self.adc_buffer_size = 0
         self.usb_buffer_size = 0
         self.target_packet_count = 0

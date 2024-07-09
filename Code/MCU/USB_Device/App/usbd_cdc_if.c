@@ -50,7 +50,7 @@
 
 /* USER CODE BEGIN PRIVATE_TYPES */
 extern uint8_t rx_buffer[USB_RX_BUFFER_SIZE];
-extern enum CONV_STATE conv_state;
+extern enum PROG_STATE prog_state;
 /* USER CODE END PRIVATE_TYPES */
 
 /**
@@ -271,7 +271,7 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   memcpy(rx_buffer, Buf, len);  // copy the data to the buffer
   memset(Buf, '\0', len);   // clear the Buf also
 
-  conv_state = CFG_RECEIVED;
+  prog_state = CFG_RECEIVED;
   return (USBD_OK);
 
   /* USER CODE END 6 */

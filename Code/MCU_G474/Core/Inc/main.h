@@ -36,7 +36,7 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-enum CONV_STATE {
+enum PROG_STATE {
   IDLE,
   CFG_RECEIVED,
   CFG_INTERPRETED,

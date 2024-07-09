@@ -43,7 +43,7 @@
 /* USER CODE BEGIN PV */
 extern int target_conv_count;
 extern int conv_count;
-extern enum CONV_STATE conv_state;
+extern enum PROG_STATE prog_state;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -301,7 +301,7 @@ void TIM2_IRQHandler(void)
   /* USER CODE BEGIN TIM2_IRQn 1 */
   conv_count++;
   if(conv_count > target_conv_count){
-	  conv_state = DONE;
+	  prog_state = DONE;
   }
   /* USER CODE END TIM2_IRQn 1 */
 }

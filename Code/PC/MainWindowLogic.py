@@ -3,6 +3,7 @@ import math
 import os
 import time
 from datetime import datetime
+from pprint import pprint
 
 import jsonpickle as jsonpickle
 import serial
@@ -321,7 +322,7 @@ class MainWindowLogic:
 
             return
 
-        number_of_steps = 5
+        number_of_steps = 6
         progress_dialog = QProgressDialog("Preparing...", "Cancel", 0, number_of_steps + 1, self.form)
         progress_dialog.overrideWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
         progress_dialog.setWindowModality(Qt.WindowModal)
@@ -337,7 +338,7 @@ class MainWindowLogic:
         progress_dialog.setValue(2)
         if not self.measurement_receive_parameters():
             print("Error")
-            progress_dialog.setValue(6)
+            progress_dialog.setValue(7)
             self.form.setEnabled(True)
             return
 
@@ -348,12 +349,15 @@ class MainWindowLogic:
         progress_dialog.setLabelText("Receiving data from MCU...")
         progress_dialog.setValue(4)
         self.measurement_receive_data()
-        progress_dialog.setLabelText("Saving record...")
+        progress_dialog.setLabelText("Receiving measurement report from MCU...")
         progress_dialog.setValue(5)
+        self.measurement_receive_report()
+        progress_dialog.setLabelText("Saving record...")
+        progress_dialog.setValue(6)
         # TODO
         self.measurement_save_record()
         progress_dialog.setLabelText("Done")
-        progress_dialog.setValue(6)
+        progress_dialog.setValue(7)
 
         self.form.setEnabled(True)
 
@@ -365,16 +369,22 @@ class MainWindowLogic:
         setup_string += f"RecLen:{str(self.record.length_ms)};"
         setup_string += f"RecInt:{str(self.record.interval_us)};"
 
+        enabled_channels = [0, 0, 0, 0]
         tc_sensitivity_ranking = ["E", "J", "K", "T"]
         highest_sensitivity_tc_available = "T"
-        for channel in self.record.channels:
+        for i in range(len(self.record.channels)):
+            channel = self.record.channels[i]
             if not channel.available:
                 continue
+            enabled_channels[i] = 1
             if tc_sensitivity_ranking.index(channel.tc_type) < tc_sensitivity_ranking.index(highest_sensitivity_tc_available):
                 highest_sensitivity_tc_available = channel.tc_type
         setup_string += f"TcType:{highest_sensitivity_tc_available};"
+        enabled_channels_format = "|".join(str(x) for x in enabled_channels)
+        setup_string += f"EnChan:{enabled_channels_format};"
 
         setup_string += "\0"
+
         self.serial.write(setup_string.encode())
         print(setup_string)
 
@@ -384,7 +394,7 @@ class MainWindowLogic:
         while not self.serial.inWaiting():
             QApplication.processEvents()
 
-        parameters_raw = self.serial.readline(Parameters.usb_header_size)
+        parameters_raw = self.serial.readline(Parameters.service_msg_size)
         try:
             parameters = parameters_raw.decode().rstrip("\n")
         except UnicodeDecodeError:
@@ -403,8 +413,6 @@ class MainWindowLogic:
                 self.record.analog_reference_voltage = float(parameter_value)
             elif parameter_name == "AplOfs":
                 self.record.applied_offset_voltage = float(parameter_value)
-            elif parameter_name == "HdrSiz":
-                self.record.header_size = int(parameter_value)
             elif parameter_name == "AdcBuf":
                 self.record.adc_buffer_size = int(parameter_value)
             elif parameter_name == "PktCnt":
@@ -415,93 +423,71 @@ class MainWindowLogic:
     def measurement_receive_data(self):
         print(f"Buffers to receive: {self.record.target_packet_count}")
 
-        # Receive data from MCU
-        buffers = {}
-        adc_index = 0
-        previous_package_num = 0
-        for i in range(self.record.target_packet_count):
-            # usb_packet = self.serial.read_until("EOP".encode())
-            usb_packet = self.serial.read(1032)
-        #     usb_packet_split = usb_packet.split("!!!".encode())
-        #
-        #     usb_header = usb_packet_split[0].decode()
-        #     usb_data = usb_packet_split[1]
-        #     usb_tail = usb_packet_split[2].decode().rstrip("EOP")
-        #
-        #     usb_header_split = usb_header.split(";")
-        #     for parameter in usb_header_split:
-        #         parameter_name_value = parameter.split(":")
-        #         parameter_name = parameter_name_value[0]
-        #         parameter_value = parameter_name_value[1]
-        #
-        #         if parameter_name == "AdcInd":
-        #             adc_index = int(parameter_value)
-        #         elif parameter_name == "PktNum":
-        #             package_num = int(parameter_value)
-        #             if package_num == 0:
-        #                 buffers[adc_index] = []
-        #             elif package_num != (previous_package_num + 1):
-        #                 print("Warning! Dropped package detected!")
-        #             previous_package_num = package_num
-        #
-        #     buffers[adc_index].extend(usb_data)
-        #
-        # # Process received data
-        # for adc_index, buffer in buffers.items():
-        #     for i in range(0, (len(buffer) - 1), 2):
-        #         adc_reading_num = (buffer[i] << 8) + buffer[i + 1]
-        #         adc_reading_voltage = adc_reading_num / pow(2, 16) * self.record.analog_reference_voltage
-        #         temperature = self.calculate_thermocouple_temperature(measured_voltage=adc_reading_voltage,
-        #                                                               tc_type=self.record.channels[adc_index].tc_type)
-        #         if temperature is None:
-        #             temperature = 0
-        #         self.record.channels[adc_index].raw_data.append(temperature)
+        channel_buffers = {}
+        self.record.usb_buffer_size = 0
+        for i in range(self.record.num_of_channels):
+            if not self.record.channels[i].available:
+                continue
+            channel_buffers[i] = []
+            self.record.usb_buffer_size += self.record.adc_buffer_size
 
-        # print(temperatures)
-        # # Receive data from MCU
-        # print(f"Buffers to receive: {self.record.target_packet_count}, usb buffer size: {self.record.usb_buffer_size}")
-        # buffers = []
-        # for i in range(self.record.target_packet_count):
-        #     buffers.extend([self.serial.read(self.record.usb_buffer_size)])
-        #
-        # last_buffer = False
-        # for buffer in buffers:
-        #     if buffer == buffers[-1]:
-        #         last_buffer = True
-        #
-        #     adc_data_split = []
-        #     for j in range(self.record.num_of_channels):
-        #         adc_data_split.append(buffer[(self.record.adc_buffer_size * j):(self.record.adc_buffer_size * (j + 1))])
-        #
-        #     index = 0
-        #     for channel_data in adc_data_split:
-        #         if not self.record.channels[index].available:
-        #             index += 1
-        #             continue
-        #
-        #         # TODO: check
-        #         if last_buffer:
-        #             total_data_points = (self.record.length_ms * 1000.0) / self.record.interval_us
-        #             received_data_points = self.record.target_packet_count * (self.record.adc_buffer_size / 2)
-        #             extra_data_points = math.ceil(received_data_points - total_data_points)
-        #             print(extra_data_points)
-        #             if extra_data_points != 0:
-        #                 last_valid_index = int((self.record.adc_buffer_size / 2) - extra_data_points)
-        #                 channel_data = channel_data[:(last_valid_index * 2)]
-        #
-        #         for j in range(0, (len(channel_data) - 1), 2):
-        #             adc_reading_num = (channel_data[j] << 8) + channel_data[j + 1]
-        #             adc_reading_voltage = adc_reading_num / pow(2, 16) * self.record.analog_reference_voltage
-        #             temperature = self.calculate_thermocouple_temperature(measured_voltage=adc_reading_voltage,
-        #                                                                   tc_type=self.record.channels[index].tc_type)
-        #
-        #             self.record.channels[index].raw_data.append(temperature)
-        #
-        #         index += 1
-        #
-        # if self.serial.inWaiting():
-        #     self.serial.read(self.serial.inWaiting())
+        # Receive data from MCU
+        buffers = []
+        for i in range(self.record.target_packet_count):
+            usb_packet = self.serial.read(self.record.usb_buffer_size)
+            buffers.append(usb_packet)
+
+        # Process received data
+        for buffer in buffers:
+            start_index = 0
+            end_index = self.record.adc_buffer_size
+            for i in range(self.record.num_of_channels):
+                if not self.record.channels[i].available:
+                    continue
+                channel_buffers[i].extend(buffer[start_index:end_index])
+                start_index = end_index
+                end_index += self.record.adc_buffer_size
+
+        record_amount = int((self.record.length_ms * 1000.0) / self.record.interval_us)
+        for channel_index, channel_data in channel_buffers.items():
+            for i in range(0, record_amount * 2, 2):
+                adc_reading_num = (channel_data[i] << 8) + channel_data[i + 1]
+                adc_reading_voltage = adc_reading_num / pow(2, 16) * self.record.analog_reference_voltage
+                temperature = self.calculate_thermocouple_temperature(measured_voltage=adc_reading_voltage,
+                                                                      tc_type=self.record.channels[channel_index].tc_type)
+                if temperature is None or temperature > 220 or temperature < 0:
+                    temperature = 0
+                self.record.channels[channel_index].raw_data.append(temperature)
+
         return
+
+    def measurement_receive_report(self):
+        while not self.serial.inWaiting():
+            QApplication.processEvents()
+
+        parameters_raw = self.serial.readline(Parameters.service_msg_size)
+        try:
+            parameters = parameters_raw.decode().rstrip("\n")
+        except UnicodeDecodeError:
+            self.serial.read(self.serial.inWaiting())
+            return False
+        parameters_split = parameters.split(";")
+
+        for parameter in parameters_split:
+            parameter_name_value = parameter.split(":")
+            parameter_name = parameter_name_value[0]
+            parameter_value = parameter_name_value[1]
+
+            if parameter_name == "TrsErr":
+                transmission_error = int(parameter_value)
+                if transmission_error != 0:
+                    print(f"Transmission error! Code: {transmission_error}")
+            elif parameter_name == "DrpPkt":
+                dropped_packets = int(parameter_value)
+                if dropped_packets != 0:
+                    print(f"Dropped packet(s) detected! Amount: {dropped_packets}")
+
+        return True
 
     def calculate_thermocouple_temperature(self, measured_voltage, tc_type):
         if measured_voltage > 0:
