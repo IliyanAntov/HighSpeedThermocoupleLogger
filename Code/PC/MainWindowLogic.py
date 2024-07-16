@@ -455,8 +455,8 @@ class MainWindowLogic:
                 adc_reading_voltage = adc_reading_num / pow(2, 16) * self.record.analog_reference_voltage
                 temperature = self.calculate_thermocouple_temperature(measured_voltage=adc_reading_voltage,
                                                                       tc_type=self.record.channels[channel_index].tc_type)
-                if temperature is None or temperature > 220 or temperature < 0:
-                    temperature = 0
+                if temperature is None or temperature > 220 or temperature < -20:
+                    temperature = -20
                 self.record.channels[channel_index].raw_data.append(temperature)
 
         return

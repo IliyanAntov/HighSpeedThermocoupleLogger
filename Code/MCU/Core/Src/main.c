@@ -169,6 +169,7 @@ int InterpretConfig(void);
 int InterpretVariable(char name[CFG_VAR_SIZE], char value[CFG_VAR_SIZE]);
 int SetupMeasurement(void);
 int SendParameters(void);
+float MeasureVref(void);
 int StartMeasurement(void);
 int SendData(enum ADC_BUFFER_STATE usb_transmition_state);
 int SendTrasmissionReport(void);
@@ -630,15 +631,16 @@ static void MX_DAC1_Init(void)
 
   /** DAC channel OUT1 config
   */
-  sConfig.DAC_HighFrequency = DAC_HIGH_FREQUENCY_INTERFACE_MODE_DISABLE;
+  sConfig.DAC_HighFrequency = DAC_HIGH_FREQUENCY_INTERFACE_MODE_AUTOMATIC;
   sConfig.DAC_DMADoubleDataMode = DISABLE;
   sConfig.DAC_SignedFormat = DISABLE;
   sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
   sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
   sConfig.DAC_Trigger2 = DAC_TRIGGER_NONE;
-  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_DISABLE;
+  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
   sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_EXTERNAL;
-  sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
+  sConfig.DAC_UserTrimming = DAC_TRIMMING_USER;
+  sConfig.DAC_TrimmingValue = 1;
   if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
@@ -917,28 +919,29 @@ int SetupMeasurement(void){
 	uint8_t coefficients_count;
 	if(tc_type == 'E') {
 		HAL_SYSCFG_VREFBUF_VoltageScalingConfig(SYSCFG_VREFBUF_VOLTAGE_SCALE2); // 2.9V
-		analog_reference_voltage = 2.9;
 		used_coefficients = type_e_coefficients;
 		coefficients_count = type_e_coefficients_count;
 	}
 	else if(tc_type == 'J') {
 		HAL_SYSCFG_VREFBUF_VoltageScalingConfig(SYSCFG_VREFBUF_VOLTAGE_SCALE1); // 2.5V
-		analog_reference_voltage = 2.5;
 		used_coefficients = type_j_coefficients;
 		coefficients_count = type_j_coefficients_count;
 	}
 	else if(tc_type == 'K') {
 		HAL_SYSCFG_VREFBUF_VoltageScalingConfig(SYSCFG_VREFBUF_VOLTAGE_SCALE0); // 2.048V
-		analog_reference_voltage = 2.048;
 		used_coefficients = type_k_coefficients;
 		coefficients_count = type_k_coefficients_count;
 	}
 	else if(tc_type == 'T') {
 		HAL_SYSCFG_VREFBUF_VoltageScalingConfig(SYSCFG_VREFBUF_VOLTAGE_SCALE0); // 2.048V
-		analog_reference_voltage = 2.048;
 		used_coefficients = type_t_coefficients;
 		coefficients_count = type_t_coefficients_count;
 	}
+
+	// Measure the actual analog reference voltage
+	HAL_Delay(100);
+	analog_reference_voltage = MeasureVref();
+	adc_states[0] = EMPTY;
 
 	// > Calculate and set ADC sync timer
 	__HAL_TIM_SET_AUTORELOAD(&htim2, record_interval_us - 1);
@@ -976,6 +979,23 @@ int SetupMeasurement(void){
 	uint32_t offset = (uint32_t)(total_offset_calc * 4096) / analog_reference_voltage;
 	applied_voltage_offset = (float)(offset * analog_reference_voltage) / 4096;
 
+	// Calibrate the DAC
+	DAC_ChannelConfTypeDef sConfig = {0};
+	sConfig.DAC_HighFrequency = DAC_HIGH_FREQUENCY_INTERFACE_MODE_AUTOMATIC;
+	sConfig.DAC_DMADoubleDataMode = DISABLE;
+	sConfig.DAC_SignedFormat = DISABLE;
+	sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
+	sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
+	sConfig.DAC_Trigger2 = DAC_TRIGGER_NONE;
+	sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+	sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_EXTERNAL;
+	sConfig.DAC_UserTrimming = DAC_TRIMMING_USER;
+	if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
+	{
+	Error_Handler();
+	}
+	HAL_DACEx_SelfCalibrate(&hdac1, &sConfig, DAC_CHANNEL_1);
+
 	// Set the DAC voltage
 	HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, offset);
 	HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
@@ -987,26 +1007,69 @@ int SetupMeasurement(void){
 		target_packet_count += 1;
 	}
 
-	// Setup ADCs
-	if(channel_enabled_status[0]){
-		HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
-		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers[0], ADC_BUFFER_SIZE);
-	}
-	if(channel_enabled_status[1]){
-		HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
-		HAL_ADC_Start_DMA(&hadc2, (uint32_t*)adc_buffers[1], ADC_BUFFER_SIZE);
-	}
-	if(channel_enabled_status[2]){
-		HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED);
-		HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc_buffers[2], ADC_BUFFER_SIZE);
-	}
-	if(channel_enabled_status[3]){
-		HAL_ADCEx_Calibration_Start(&hadc4, ADC_SINGLE_ENDED);
-		HAL_ADC_Start_DMA(&hadc4, (uint32_t*)adc_buffers[3], ADC_BUFFER_SIZE);
-	}
-
 	prog_state = PARAMETERS_SET;
 	return 1;
+}
+
+float MeasureVref(void) {
+	HAL_ADC_DeInit(&hadc1);
+
+	// Measure Vref
+	hadc1.Instance = ADC1;
+	hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+	hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+	hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+	hadc1.Init.GainCompensation = 0;
+	hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+	hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+	hadc1.Init.LowPowerAutoWait = DISABLE;
+	hadc1.Init.ContinuousConvMode = DISABLE;
+	hadc1.Init.NbrOfConversion = 1;
+	hadc1.Init.DiscontinuousConvMode = DISABLE;
+	hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+	hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+	hadc1.Init.DMAContinuousRequests = ENABLE;
+	hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+	hadc1.Init.OversamplingMode = DISABLE;
+	if (HAL_ADC_Init(&hadc1) != HAL_OK) {
+		Error_Handler();
+	}
+
+	ADC_MultiModeTypeDef multimode = {0};
+
+	multimode.Mode = ADC_MODE_INDEPENDENT;
+	if (HAL_ADCEx_MultiModeConfigChannel(&hadc1, &multimode) != HAL_OK) {
+		Error_Handler();
+	}
+
+	ADC_ChannelConfTypeDef sConfig = {0};
+
+	sConfig.Channel = ADC_CHANNEL_VREFINT;
+	sConfig.Rank = ADC_REGULAR_RANK_1;
+	sConfig.SamplingTime = ADC_SAMPLETIME_640CYCLES_5; // 4.76us sampling time (min 4us)
+	sConfig.SingleDiff = ADC_SINGLE_ENDED;
+	sConfig.OffsetNumber = ADC_OFFSET_NONE;
+	sConfig.Offset = 0;
+	if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
+		Error_Handler();
+	}
+
+	uint16_t vrefint_data = 0;
+	HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&vrefint_data, 1);
+	HAL_Delay(1);
+	HAL_ADC_Stop_DMA(&hadc1);
+
+	uint16_t vrefint_cal;
+	vrefint_cal= *((uint16_t*)VREFINT_CAL_ADDR);
+
+	float vref = (VREFINT_CAL_VREF / 1000.0) * (float)vrefint_cal / (float)vrefint_data;
+
+	// Return ADC to initial state
+	HAL_ADC_DeInit(&hadc1);
+	MX_ADC1_Init();
+
+	return vref;
 }
 
 int SendParameters(void) {
@@ -1034,6 +1097,24 @@ int StartMeasurement(void) {
 	HAL_GPIO_WritePin(IND_LED_G_GPIO_Port, IND_LED_G_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(IND_LED_R_GPIO_Port, IND_LED_R_Pin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(IND_LED_B_GPIO_Port, IND_LED_B_Pin, GPIO_PIN_SET);
+
+	// Setup ADCs
+	if(channel_enabled_status[0]){
+		HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
+		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers[0], ADC_BUFFER_SIZE);
+	}
+	if(channel_enabled_status[1]){
+		HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
+		HAL_ADC_Start_DMA(&hadc2, (uint32_t*)adc_buffers[1], ADC_BUFFER_SIZE);
+	}
+	if(channel_enabled_status[2]){
+		HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED);
+		HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc_buffers[2], ADC_BUFFER_SIZE);
+	}
+	if(channel_enabled_status[3]){
+		HAL_ADCEx_Calibration_Start(&hadc4, ADC_SINGLE_ENDED);
+		HAL_ADC_Start_DMA(&hadc4, (uint32_t*)adc_buffers[3], ADC_BUFFER_SIZE);
+	}
 
 	HAL_TIM_Base_Start_IT(&htim2);
 
