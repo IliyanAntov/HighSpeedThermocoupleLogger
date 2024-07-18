@@ -942,6 +942,7 @@ int SetupMeasurement(void){
 	HAL_Delay(100);
 	analog_reference_voltage = MeasureVref();
 	adc_states[0] = EMPTY;
+	dropped_packet_count = 0;
 
 	// > Calculate and set ADC sync timer
 	__HAL_TIM_SET_AUTORELOAD(&htim2, record_interval_us - 1);
@@ -1046,7 +1047,7 @@ float MeasureVref(void) {
 
 	sConfig.Channel = ADC_CHANNEL_VREFINT;
 	sConfig.Rank = ADC_REGULAR_RANK_1;
-	sConfig.SamplingTime = ADC_SAMPLETIME_640CYCLES_5; // 4.76us sampling time (min 4us)
+	sConfig.SamplingTime = ADC_SAMPLETIME_640CYCLES_5;
 	sConfig.SingleDiff = ADC_SINGLE_ENDED;
 	sConfig.OffsetNumber = ADC_OFFSET_NONE;
 	sConfig.Offset = 0;

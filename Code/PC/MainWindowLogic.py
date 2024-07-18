@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import QApplication
 
 from PC.Record import Record
 from PC.Parameters import Parameters
-from PlotLogic import PlotLogic
+from PlotWindowLogic import PlotLogic
 
 from MainWindowUI import Ui_Form
 from PyQt5 import QtWidgets, QtTest, QtGui

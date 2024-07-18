@@ -1,8 +1,10 @@
 import copy
 import json
 import math
+import multiprocessing
 import sys
 from functools import partial
+from multiprocessing import Pool
 
 import jsonpickle
 import numpy as np
@@ -14,14 +16,14 @@ from scipy.optimize import curve_fit
 
 from PC.Record import Record
 from PC.Parameters import Parameters
-from PlotUI import Ui_Form
+from PlotWindowUI import Ui_Form
 from PyQt5 import QtWidgets
 import matplotlib.pyplot as plt
 
 
 class PlotLogic:
     def __init__(self):
-        # TODO: delete
+        # NOTE: Debugging code
         # self.app = QtWidgets.QApplication(sys.argv)
         self.ui = Ui_Form()
         self.form = QtWidgets.QWidget()
@@ -42,7 +44,7 @@ class PlotLogic:
         self.set_field_limit_values()
 
         self.form.show()
-        # TODO: delete
+        # NOTE: Debugging code
         # sys.exit(self.app.exec_())
 
     def update_enabled_widgets(self):
@@ -342,12 +344,7 @@ class PlotLogic:
 
         plt.title(self.record_file_name.replace(".json", ""), pad=15)
         plt.xlabel("Time [ms]")
-        plt.xticks(np.linspace(0, self.record.length_ms, 11))
         plt.ylabel("Temperature [°C]")
-        y_ticks = math.ceil(y_max / 10.0)
-        if y_ticks > 20:
-            y_ticks = 20
-        plt.yticks(np.linspace(0, y_ticks * 10, y_ticks + 1))
         plt.legend()
         plt.grid()
 
@@ -375,23 +372,54 @@ class PlotLogic:
     def calculate_predicted_data(x_data, y_data, channel_parameters):
         x_short_ms = x_data[:channel_parameters.prediction_queue_length]
         x_short = list((x*10**(-3)) for x in x_short_ms)
-
         y_short = y_data[:channel_parameters.prediction_queue_length]
-        predictions = []
 
+        y_sets = []
         for data_point in y_data[channel_parameters.prediction_queue_length:]:
-            t_0 = y_short[0]
-            heating_function_fixed_params = partial(PlotLogic.heating_function, tau_ms=channel_parameters.prediction_time_constant_ms, t_0=t_0)
-
-            param, param_cov = curve_fit(heating_function_fixed_params, x_short, y_short)
-            predictions.append(param[0])
+            y_sets.append(copy.copy(y_short))
 
             y_short.pop(0)
             y_short.append(data_point)
 
+        pool = Pool(processes=multiprocessing.cpu_count())
+        predictions = pool.map(partial(PlotLogic.calculate_predicted_data_point, x_short, channel_parameters),
+                               y_sets)
+
         return predictions
 
-# TODO: delete
+    @staticmethod
+    def calculate_predicted_data_point(x_data, channel_parameters, y_data):
+        t_0 = y_data[0]
+        heating_function_fixed_params = partial(PlotLogic.heating_function,
+                                                tau_ms=channel_parameters.prediction_time_constant_ms,
+                                                t_0=t_0)
+        param, param_cov = curve_fit(heating_function_fixed_params, x_data, y_data)
+        return param[0]
+
+    # NOTE: Slower method, but works with debugging
+    # @staticmethod
+    # def calculate_predicted_data(x_data, y_data, channel_parameters):
+    #     x_short_ms = x_data[:channel_parameters.prediction_queue_length]
+    #     x_short = list((x*10**(-3)) for x in x_short_ms)
+    #
+    #     y_short = y_data[:channel_parameters.prediction_queue_length]
+    #     predictions = []
+    #
+    #     for data_point in y_data[channel_parameters.prediction_queue_length:]:
+    #         t_0 = y_short[0]
+    #         heating_function_fixed_params = partial(PlotLogic.heating_function,
+    #                                                 tau_ms=channel_parameters.prediction_time_constant_ms,
+    #                                                 t_0=t_0)
+    #
+    #         param, param_cov = curve_fit(heating_function_fixed_params, x_short, y_short)
+    #         predictions.append(param[0])
+    #
+    #         y_short.pop(0)
+    #         y_short.append(data_point)
+    #
+    #     return predictions
+
+# NOTE: Debugging code
 # if __name__ == "__main__":
 #     plot_window = PlotLogic()
-#     plot_window.run("sample.json")
+#     plot_window.run("hot_cold_hot_sample_10us.json")
