@@ -1,37 +1,48 @@
 import json
 import math
 import os
+import threading
 import time
 from datetime import datetime
 from pprint import pprint
+from threading import Thread
 
 import jsonpickle as jsonpickle
+import keyboard
 import serial
 import serial.tools.list_ports
 from PyQt5.QtCore import QRegularExpression, Qt, QSize, QEventLoop, QTimer, pyqtSignal, QObject
+from PyQt5.QtGui import QKeyEvent, QColor
 from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import *
 from PyQt5.uic.properties import QtCore
 from PyQt5.QtWidgets import QApplication
 
+from PC.MainWindowUI import Ui_Form
 from PC.Record import Record
 from PC.Parameters import Parameters
 from PlotWindowLogic import PlotLogic
 
-from MainWindowUI import Ui_Form
 from PyQt5 import QtWidgets, QtTest, QtGui
 import sys
 
 
 class MainWindowLogic:
+
     def __init__(self):
         self.ui = Ui_Form()
         self.app = QtWidgets.QApplication(sys.argv)
         self.app.setWindowIcon(QtGui.QIcon("UI/icon.png"))
+        self.app.aboutToQuit.connect(self.stop_serial_ports)
         self.form = QtWidgets.QWidget()
         self.record = Record(number_of_channels=4)
         self.serial = None
+        self.serial_gen = None
         self.connection_established = False
+        self.connection_established_gen = False
+
+        self.read_thread_gen = None
+        self.read_thread_active = False
 
         self.record_length_ms_min_max = {
             "min": 1,
@@ -49,9 +60,15 @@ class MainWindowLogic:
         self.ui.RecordLengthValue.setValue(self.record.length_ms)
         self.ui.RecordIntervalValue.setValue(self.record.interval_us)
 
+        # Logger UI
         self.update_enabled_widgets()
         self.assign_button_functions()
         self.display_available_records()
+
+        # Generator UI
+        self.set_available_comports_gen()
+        self.update_enabled_widgets_gen()
+        self.assign_button_functions_gen()
 
         self.form.show()
 
@@ -62,6 +79,21 @@ class MainWindowLogic:
             self.update_connection_widgets_enable_status(False)
         else:
             self.update_connection_widgets_enable_status(True)
+
+    def set_available_comports_gen(self):
+        self.ui.GeneratorComPort.clear()
+
+        ports = serial.tools.list_ports.comports()
+        for port, desc, hwid in sorted(ports):
+            self.ui.GeneratorComPort.addItem(port)
+
+        return
+
+    def update_enabled_widgets_gen(self):
+        if not self.connection_established_gen:
+            self.update_connection_widgets_enable_status_gen(False)
+        else:
+            self.update_connection_widgets_enable_status_gen(True)
 
     def update_connection_widgets_enable_status(self, status):
         self.ui.MeasureButton.setEnabled(status)
@@ -91,6 +123,12 @@ class MainWindowLogic:
 
             for i in range(4):
                 self.update_channel_widgets_enable_status(i + 1)
+
+    def update_connection_widgets_enable_status_gen(self, status):
+        self.ui.GeneratorCommand.setEnabled(status)
+        self.ui.GeneratorSendCommandButton.setEnabled(status)
+        self.ui.GeneratorOutputList.setEnabled(status)
+        self.ui.GeneratorOutputClearButton.setEnabled(status)
 
     def update_channel_widgets_enable_status(self, channel):
         channel_index = channel - 1
@@ -205,7 +243,6 @@ class MainWindowLogic:
         widget = self.form.findChild(QDoubleSpinBox, f"PostProcessLowPassCornerFrequency_{channel}")
         self.record.channels[channel_index].post_process_filter_freq_khz = widget.value()
 
-
     def assign_button_functions(self):
         self.ui.ConnectionButton.clicked.connect(self.vcp_connection_change)
         self.ui.MeasureButton.clicked.connect(self.measure)
@@ -267,6 +304,17 @@ class MainWindowLogic:
         self.ui.RenameRecordButton.clicked.connect(self.rename_selected_record)
         self.ui.DeleteRecordButton.clicked.connect(self.delete_selected_record)
 
+    def assign_button_functions_gen(self):
+        self.ui.GeneratorConnectionButton.clicked.connect(self.connection_change_gen)
+        self.ui.GeneratorSendCommandButton.clicked.connect(self.send_command_gen)
+        self.ui.GeneratorOutputClearButton.clicked.connect(self.clear_output_gen)
+        self.ui.GeneratorOutputList.model().rowsInserted.connect(lambda: self.ui.GeneratorOutputList.scrollToBottom())
+        self.ui.GeneratorOutputList.setWordWrap(True)
+        # self.ui.GeneratorSendCommandButton.setShortcut("Return")
+        for sequence in ("Enter", "Return",):
+            shortcut = QtWidgets.QShortcut(sequence, self.ui.GeneratorSendCommandButton)
+            shortcut.activated.connect(self.ui.GeneratorSendCommandButton.click)
+
     def vcp_connection_change(self):
         if self.connection_established:
             self.vcp_disconnect()
@@ -306,6 +354,64 @@ class MainWindowLogic:
 
     def vcp_disconnect(self):
         self.serial.close()
+        return
+
+    def connection_change_gen(self):
+        if self.connection_established_gen:
+            self.disconnect_gen()
+            self.connection_established_gen = False
+            self.ui.GeneratorConnectionButton.setText("Connect")
+        else:
+            self.connection_established_gen = self.connect_gen()
+            if not self.connection_established_gen:
+                messagebox = QMessageBox(QMessageBox.Critical,
+                                         "Connection error",
+                                         "Connection to generator unsuccessful!",
+                                         QMessageBox.Ok)
+                messagebox.exec()
+            else:
+                self.ui.GeneratorConnectionButton.setText("Disconnect")
+
+        self.update_enabled_widgets_gen()
+
+    def connect_gen(self):
+        selected_port = self.ui.GeneratorComPort.currentText()
+        self.serial_gen = serial.Serial(port=selected_port, baudrate=115200, timeout=None)
+        self.read_thread_gen = threading.Thread(target=self.read_data_gen)
+        self.read_thread_active = True
+        self.read_thread_gen.start()
+
+        self.ui.GeneratorComPort.setEnabled(False)
+        return True
+
+    def read_data_gen(self):
+        while self.read_thread_active:
+            if self.serial_gen.inWaiting():
+                data_full = self.serial_gen.read_until('>'.encode())
+                data_split = data_full.decode().split('\r')
+
+                for data_line in data_split:
+                    item = QListWidgetItem(data_line)
+                    if data_line == data_split[0]:
+                        item.setBackground(QColor("#dbdbdb"))
+                    elif data_line == "generator>":
+                        item.setBackground(QColor("#b9c9fa"))
+                    self.ui.GeneratorOutputList.addItem(item)
+
+    def disconnect_gen(self):
+        self.read_thread_active = False
+        self.serial_gen.close()
+
+        self.ui.GeneratorComPort.setEnabled(True)
+        return
+
+    def send_command_gen(self):
+        command = self.ui.GeneratorCommand.text()
+        self.serial_gen.write(command.encode())
+        return
+
+    def clear_output_gen(self):
+        self.ui.GeneratorOutputList.clear()
         return
 
     def measure(self):
@@ -455,7 +561,9 @@ class MainWindowLogic:
                 adc_reading_voltage = adc_reading_num / pow(2, 16) * self.record.analog_reference_voltage
                 temperature = self.calculate_thermocouple_temperature(measured_voltage=adc_reading_voltage,
                                                                       tc_type=self.record.channels[channel_index].tc_type)
-                if temperature is None or temperature > 220 or temperature < -20:
+                # if temperature is None or temperature > 220 or temperature < -20:
+                if temperature is None:
+
                     temperature = -20
                 self.record.channels[channel_index].raw_data.append(temperature)
 
@@ -551,7 +659,7 @@ class MainWindowLogic:
         selected_record = self.ui.RecordsList.currentItem()
         if not selected_record:
             return
-        
+
         selected_record_file_name = selected_record.text() + ".json"
         plot_window = PlotLogic()
         plot_window.run(selected_record_file_name)
@@ -599,6 +707,13 @@ class MainWindowLogic:
         filter_field_widgets = self.form.findChildren(QDoubleSpinBox, filter_field_names)
         for widget in filter_field_widgets:
             widget.setMaximum(max_filter_frequency_khz)
+
+    def stop_serial_ports(self):
+        self.read_thread_active = False
+        if self.connection_established:
+            self.serial.close()
+        if self.connection_established_gen:
+            self.serial_gen.close()
 
 
 if __name__ == "__main__":

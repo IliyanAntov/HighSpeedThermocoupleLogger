@@ -313,7 +313,7 @@ class PlotLogic:
                 data = self.record.channels[i].raw_data
                 filter_order = self.record.channels[i].data_filter_order
                 filter_corner_freq_khz = self.record.channels[i].data_filter_freq_khz
-                y_data_values = self.apply_filter(data, filter_order, filter_corner_freq_khz)
+                y_data_values = self.apply_low_pass_filter(data, filter_order, filter_corner_freq_khz)
                 data_label = f"Channel {i + 1} data ({filter_corner_freq_khz} kHz, order {filter_order} filter)"
 
             if y_max is None or max(y_data_values) > y_max:
@@ -333,7 +333,7 @@ class PlotLogic:
             else:
                 filter_order = self.record.channels[i].post_process_filter_order
                 filter_corner_freq_khz = self.record.channels[i].post_process_filter_freq_khz
-                y_prediction_values = self.apply_filter(prediction_values, filter_order, filter_corner_freq_khz)
+                y_prediction_values = self.apply_low_pass_filter(prediction_values, filter_order, filter_corner_freq_khz)
                 prediction_label = f"Channel {i + 1} prediction ({filter_corner_freq_khz} kHz, order {filter_order} filter)"
 
             if max(y_prediction_values) > y_max:
@@ -350,10 +350,16 @@ class PlotLogic:
 
         plt.show()
 
-    def apply_filter(self, data, order, corner_frequency_khz):
+    def apply_low_pass_filter(self, data, order, corner_frequency_khz):
         cutoff_freq_khz = (1 / self.record.interval_us) * 1000
         nyquist_freq_khz = cutoff_freq_khz / 2
         b, a = signal.butter(N=order, Wn=corner_frequency_khz / nyquist_freq_khz)
+        data_filtered = signal.filtfilt(b, a, data)
+        return data_filtered.tolist()
+
+    def apply_rejection_filter(self, data, stop_freq, qual_factor):
+        sample_freq = (1 / self.record.interval_us) * 1000
+        b, a = signal.iirnotch(stop_freq, qual_factor, sample_freq)
         data_filtered = signal.filtfilt(b, a, data)
         return data_filtered.tolist()
 

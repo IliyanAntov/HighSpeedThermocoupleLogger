@@ -349,32 +349,32 @@ VariationCount=0
 ParamVariationCount=0
 
 [Parameter1]
-Name=CheckedBy
-Value=Boris Botev
+Name=Title
+Value=tclogger
 
 [Parameter2]
-Name=Date
-Value=2024-05-30
+Name=Revision
+Value=100
 
 [Parameter3]
-Name=DrawnBy
-Value=Iliyan Antov
+Name=Project
+Value=V786
 
 [Parameter4]
 Name=DrawnByID
 Value=IA
 
 [Parameter5]
-Name=Project
-Value=V286
+Name=DrawnBy
+Value=Iliyan Antov
 
 [Parameter6]
-Name=Revision
-Value=100
+Name=Date
+Value=2024-05-30
 
 [Parameter7]
-Name=Title
-Value=tclogger
+Name=CheckedBy
+Value=Boris Botev
 
 [Configuration1]
 Name=Default Configuration
