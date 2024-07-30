@@ -17,6 +17,7 @@ from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import *
 from PyQt5.uic.properties import QtCore
 from PyQt5.QtWidgets import QApplication
+from serial import SerialTimeoutException, SerialException
 
 from PC.MainWindowUI import Ui_Form
 from PC.Record import Record
@@ -44,14 +45,8 @@ class MainWindowLogic:
         self.read_thread_gen = None
         self.read_thread_active = False
 
-        self.record_length_ms_min_max = {
-            "min": 1,
-            "max": 2000
-        }
-        self.record_interval_us_min_max = {
-            "min": 10,
-            "max": 1000
-        }
+        self.measuring = False
+        self.save_impedance_data = False
 
     def run(self):
         self.ui.setupUi(self.form)
@@ -75,6 +70,8 @@ class MainWindowLogic:
         sys.exit(self.app.exec_())
 
     def update_enabled_widgets(self):
+        self.measurement_ui_enabled(False)
+
         if not self.connection_established:
             self.update_connection_widgets_enable_status(False)
         else:
@@ -263,10 +260,10 @@ class MainWindowLogic:
         self.ui.PostProcessLowPassEnabled_2.clicked.connect(lambda: self.toggle_prediction_processing(2))
         self.ui.PostProcessLowPassEnabled_3.clicked.connect(lambda: self.toggle_prediction_processing(3))
         self.ui.PostProcessLowPassEnabled_4.clicked.connect(lambda: self.toggle_prediction_processing(4))
-        self.ui.RecordLengthMinButton.clicked.connect(lambda: self.set_record_length(self.record_length_ms_min_max["min"]))
-        self.ui.RecordLengthMaxButton.clicked.connect(lambda: self.set_record_length(self.record_length_ms_min_max["max"]))
-        self.ui.RecordIntervalMinButton.clicked.connect(lambda: self.set_record_interval(self.record_interval_us_min_max["min"]))
-        self.ui.RecordIntervalMaxButton.clicked.connect(lambda: self.set_record_interval(self.record_interval_us_min_max["max"]))
+        self.ui.RecordLengthMinButton.clicked.connect(lambda: self.set_record_length(Parameters.record_length_ms_min_max["min"]))
+        self.ui.RecordLengthMaxButton.clicked.connect(lambda: self.set_record_length(Parameters.record_length_ms_min_max["max"]))
+        self.ui.RecordIntervalMinButton.clicked.connect(lambda: self.set_record_interval(Parameters.record_interval_us_min_max["min"]))
+        self.ui.RecordIntervalMaxButton.clicked.connect(lambda: self.set_record_interval(Parameters.record_interval_us_min_max["max"]))
 
         self.ui.ChannelTcType_1.currentTextChanged.connect(lambda: self.channel_tc_type_changed(1))
         self.ui.ChannelTcType_2.currentTextChanged.connect(lambda: self.channel_tc_type_changed(2))
@@ -308,12 +305,21 @@ class MainWindowLogic:
         self.ui.GeneratorConnectionButton.clicked.connect(self.connection_change_gen)
         self.ui.GeneratorSendCommandButton.clicked.connect(self.send_command_gen)
         self.ui.GeneratorOutputClearButton.clicked.connect(self.clear_output_gen)
+        self.ui.GeneratorComPortRefreshButton.clicked.connect(self.set_available_comports_gen)
         self.ui.GeneratorOutputList.model().rowsInserted.connect(lambda: self.ui.GeneratorOutputList.scrollToBottom())
         self.ui.GeneratorOutputList.setWordWrap(True)
         # self.ui.GeneratorSendCommandButton.setShortcut("Return")
         for sequence in ("Enter", "Return",):
             shortcut = QtWidgets.QShortcut(sequence, self.ui.GeneratorSendCommandButton)
             shortcut.activated.connect(self.ui.GeneratorSendCommandButton.click)
+        self.ui.MeasureButton.setShortcut("M")
+        self.ui.DeleteRecordButton.setShortcut("D")
+        self.ui.RenameRecordButton.setShortcut("R")
+        self.ui.ViewRecordButton.setShortcut("V")
+        self.ui.ChannelEnabled_1.setShortcut("Ctrl+1")
+        self.ui.ChannelEnabled_2.setShortcut("Ctrl+2")
+        self.ui.ChannelEnabled_3.setShortcut("Ctrl+3")
+        self.ui.ChannelEnabled_4.setShortcut("Ctrl+4")
 
     def vcp_connection_change(self):
         if self.connection_established:
@@ -376,26 +382,49 @@ class MainWindowLogic:
 
     def connect_gen(self):
         selected_port = self.ui.GeneratorComPort.currentText()
-        self.serial_gen = serial.Serial(port=selected_port, baudrate=115200, timeout=None)
+
+        try:
+            self.serial_gen = serial.Serial(port=selected_port, baudrate=115200, write_timeout=1, timeout=1)
+        except SerialException:
+            return False
+
+        try:
+            self.serial_gen.write(b"ConnCheck")
+        except SerialTimeoutException:
+            self.serial_gen.close()
+            return False
+
+        try:
+            received_data = self.serial_gen.read_until(b"generator>")
+            if len(received_data) == 0:
+                self.serial_gen.close()
+                return False
+        except SerialTimeoutException:
+            self.serial_gen.close()
+            return False
+
         self.read_thread_gen = threading.Thread(target=self.read_data_gen)
         self.read_thread_active = True
         self.read_thread_gen.start()
 
         self.ui.GeneratorComPort.setEnabled(False)
+        self.ui.GeneratorComPortRefreshButton.setEnabled(False)
         return True
 
     def read_data_gen(self):
         while self.read_thread_active:
             if self.serial_gen.inWaiting():
-                data_full = self.serial_gen.read_until('>'.encode())
+                data_full = self.serial_gen.read_until(b'>')
                 data_split = data_full.decode().split('\r')
+                data_split = filter(None, data_split)
 
                 for data_line in data_split:
                     item = QListWidgetItem(data_line)
-                    if data_line == data_split[0]:
-                        item.setBackground(QColor("#dbdbdb"))
-                    elif data_line == "generator>":
+                    if data_line == self.ui.GeneratorCommand.text():
                         item.setBackground(QColor("#b9c9fa"))
+                    elif data_line == "generator>":
+                        # item = QListWidgetItem("END")
+                        item.setBackground(QColor("#dbdbdb"))
                     self.ui.GeneratorOutputList.addItem(item)
 
     def disconnect_gen(self):
@@ -403,20 +432,33 @@ class MainWindowLogic:
         self.serial_gen.close()
 
         self.ui.GeneratorComPort.setEnabled(True)
+        self.ui.GeneratorComPortRefreshButton.setEnabled(True)
         return
 
     def send_command_gen(self):
         command = self.ui.GeneratorCommand.text()
         self.serial_gen.write(command.encode())
+
+        if "therapy" in command and self.measuring:
+            self.save_impedance_data = True
+
         return
 
     def clear_output_gen(self):
         self.ui.GeneratorOutputList.clear()
         return
 
-    def measure(self):
-        self.form.setEnabled(False)
+    def measurement_ui_enabled(self, status):
+        if status:
+            self.ui.ConnectMeasureButtonsFrame.hide()
+            self.ui.MeasurementProgressBar.show()
+            self.ui.MeasurementProgressText.show()
+        else:
+            self.ui.ConnectMeasureButtonsFrame.show()
+            self.ui.MeasurementProgressBar.hide()
+            self.ui.MeasurementProgressText.hide()
 
+    def measure(self):
         enabled_channels = list(x.available for x in self.record.channels).count(True)
         if not enabled_channels:
             messagebox = QMessageBox(QMessageBox.Critical,
@@ -424,49 +466,48 @@ class MainWindowLogic:
                                      "Please enable at least one channel",
                                      QMessageBox.Ok)
             messagebox.exec()
-            self.form.setEnabled(True)
-
             return
 
-        number_of_steps = 6
-        progress_dialog = QProgressDialog("Preparing...", "Cancel", 0, number_of_steps + 1, self.form)
-        progress_dialog.overrideWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
-        progress_dialog.setWindowModality(Qt.WindowModal)
-        progress_dialog.setWindowTitle("Measuring")
-        progress_dialog.setCancelButton(None)
-        progress_dialog.setAttribute(Qt.WA_DeleteOnClose)
-        progress_dialog.show()
+        self.measuring = True
 
-        progress_dialog.setValue(1)
-        progress_dialog.setLabelText("Sending setup to MCU...")
+        number_of_steps = 8
+        self.ui.MeasurementProgressText.setText("Preparing...")
+        self.ui.MeasurementProgressBar.setRange(1, number_of_steps)
+
+        self.measurement_ui_enabled(True)
+
+        self.ui.MeasurementProgressText.setText("Measuring")
+        self.ui.MeasurementProgressBar.setValue(1)
+        self.ui.MeasurementProgressText.setText("Sending setup to MCU...")
         self.measurement_send_setup()
-        progress_dialog.setLabelText("Receiving parameters from MCU...")
-        progress_dialog.setValue(2)
+        self.ui.MeasurementProgressText.setText("Receiving parameters from MCU...")
+        self.ui.MeasurementProgressBar.setValue(2)
         if not self.measurement_receive_parameters():
             print("Error")
-            progress_dialog.setValue(7)
-            self.form.setEnabled(True)
+            self.ui.MeasurementProgressBar.setValue(7)
+            self.measurement_ui_enabled(False)
             return
 
-        progress_dialog.setLabelText("Waiting for trigger signal...")
-        progress_dialog.setValue(3)
+        self.ui.MeasurementProgressText.setText("Waiting for trigger signal...")
+        self.ui.MeasurementProgressBar.setValue(3)
         while not self.serial.inWaiting():
             QApplication.processEvents()
-        progress_dialog.setLabelText("Receiving data from MCU...")
-        progress_dialog.setValue(4)
+        self.ui.MeasurementProgressText.setText("Receiving data from MCU...")
+        self.ui.MeasurementProgressBar.setValue(4)
         self.measurement_receive_data()
-        progress_dialog.setLabelText("Receiving measurement report from MCU...")
-        progress_dialog.setValue(5)
+        self.ui.MeasurementProgressText.setText("Receiving measurement report from MCU...")
+        self.ui.MeasurementProgressBar.setValue(5)
         self.measurement_receive_report()
-        progress_dialog.setLabelText("Saving record...")
-        progress_dialog.setValue(6)
-        # TODO
+        self.ui.MeasurementProgressText.setText("Reading impedance data from generator...")
+        self.ui.MeasurementProgressBar.setValue(6)
+        QtTest.QTest.qWait(1000)
+        self.read_impedance_data()
+        self.ui.MeasurementProgressText.setText("Saving record...")
+        self.ui.MeasurementProgressBar.setValue(7)
         self.measurement_save_record()
-        progress_dialog.setLabelText("Done")
-        progress_dialog.setValue(7)
-
-        self.form.setEnabled(True)
-
+        self.ui.MeasurementProgressText.setText("Done")
+        self.ui.MeasurementProgressBar.setValue(8)
+        self.measurement_ui_enabled(False)
         return
 
     def measurement_send_setup(self):
@@ -618,6 +659,39 @@ class MainWindowLogic:
                 tc_temperature += Parameters.voltage_to_temp[tc_type][tc_temperature_dir][j] * (tc_voltage_uv ** j)
 
             return tc_temperature
+
+    def read_impedance_data(self):
+        log_start_index = -1
+        log_end_index = -1
+        while log_end_index == -1 or log_start_index == -1:
+            for i in range(self.ui.GeneratorOutputList.count() - 1, -1, -1):
+                if self.ui.GeneratorOutputList.item(i).text() == Parameters.therapy_parameters_last_line:
+                    log_end_index = i
+                elif self.ui.GeneratorOutputList.item(i).text() == Parameters.therapy_parameters_first_line:
+                    log_start_index = i + 1
+                    break
+
+        parameter_names = self.ui.GeneratorOutputList.item(log_start_index).text()
+        parameter_names_list = parameter_names.split(",")
+        parameter_names_list = [x.strip() for x in parameter_names_list]
+        parameter_names_list = list(filter(None, parameter_names_list))
+
+        parameter_dict = {}
+        for name in parameter_names_list:
+            parameter_dict[name] = []
+
+        for i in range(log_start_index + 1, log_end_index):
+            current_row = self.ui.GeneratorOutputList.item(i).text()
+            current_row_list = current_row.split(",")
+
+            parameter_index = 0
+            for key in parameter_dict.keys():
+                parameter_dict[key].append(current_row_list[parameter_index])
+                parameter_index += 1
+
+        impedance_list = parameter_dict[Parameters.therapy_impedance_column_name]
+        impedance_list_int = [int(x) for x in impedance_list]
+        self.record.impedance_raw_data = impedance_list_int
 
     def measurement_save_record(self):
         # Save received data

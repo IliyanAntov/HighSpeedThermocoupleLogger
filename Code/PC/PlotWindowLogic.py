@@ -7,6 +7,7 @@ from functools import partial
 from multiprocessing import Pool
 
 import jsonpickle
+import matplotlib
 import numpy as np
 from scipy import signal
 
@@ -96,7 +97,6 @@ class PlotLogic:
                     continue
 
             widget.setEnabled(self.record.channels[channel_index].available)
-
 
         # Data pre-processing
         data_processing_names = QRegularExpression(fr"DataLowPass.*_{channel}")
@@ -298,6 +298,28 @@ class PlotLogic:
             self.form.setEnabled(True)
             return
 
+        fig, ax1 = plt.subplots()
+        ax2 = ax1.twinx()
+
+        # Plotting impedance
+        impedance_list = self.record.impedance_raw_data
+        x_values = list(range(self.record.generator_log_start_time_ms,
+                              self.record.generator_log_start_time_ms + len(impedance_list),
+                              self.record.generator_log_interval_ms))
+        plt.axvspan(self.record.generator_log_start_time_ms,
+                    self.record.generator_log_start_time_ms + len(impedance_list) - 1,
+                    facecolor='0.2',
+                    alpha=0.2)
+
+        ax2.plot(x_values, impedance_list, color="Black", label="Impedance")
+        ax2.set_xlabel("Time [ms]")
+        ax2.set_ylabel("Impedance [Ohm]")
+        impedance_axis_max = math.ceil(max(impedance_list)/1000.0) * 1000
+        ax2.set_ylim([0, impedance_axis_max])
+        ticker = matplotlib.ticker.EngFormatter(unit='', sep="")
+        ax2.yaxis.set_major_formatter(ticker)
+
+        # Plotting temperature
         channel_colors = ["red", "blue", "green", "orange"]
         x_values = np.linspace(0, self.record.length_ms, int(self.record.length_ms/(self.record.interval_us/1000)))
         y_max = None
@@ -319,7 +341,7 @@ class PlotLogic:
             if y_max is None or max(y_data_values) > y_max:
                 y_max = max(y_data_values)
 
-            plt.plot(x_values, y_data_values, color=channel_colors[i], label=data_label)
+            ax1.plot(x_values, y_data_values, color=channel_colors[i], label=data_label)
 
             # Prediction plot
             if not self.record.channels[i].temperature_prediction_enabled:
@@ -340,14 +362,14 @@ class PlotLogic:
                 y_max = max(y_prediction_values)
 
             x_values_prediction = x_values[:len(x_values) - self.record.channels[i].prediction_queue_length]
-            plt.plot(x_values_prediction, y_prediction_values, color=channel_colors[i], linestyle="dashed", label=prediction_label)
+            ax1.plot(x_values_prediction, y_prediction_values, color=channel_colors[i], linestyle="dashed", label=prediction_label)
 
         plt.title(self.record_file_name.replace(".json", ""), pad=15)
-        plt.xlabel("Time [ms]")
-        plt.ylabel("Temperature [°C]")
-        plt.legend()
+        ax1.set_xlabel("Time [ms]")
+        ax1.set_ylabel("Temperature [°C]")
+        plt.figlegend()
         plt.grid()
-
+        plt.tight_layout()
         plt.show()
 
     def apply_low_pass_filter(self, data, order, corner_frequency_khz):

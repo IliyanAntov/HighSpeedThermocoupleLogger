@@ -4,6 +4,21 @@ class Parameters:
     device_pid = 0x5740
     service_msg_size = 256
 
+    generator_log_interval_ms = 1
+    generator_log_start_time_ms = 50
+    therapy_parameters_first_line = "Therapy parameters:"
+    therapy_parameters_last_line = "-End-"
+    therapy_impedance_column_name = "Z[Ohm]"
+
+    record_length_ms_min_max = {
+        "min": 1,
+        "max": 2000
+    }
+    record_interval_us_min_max = {
+        "min": 10,
+        "max": 1000
+    }
+
     inamp_gain = ((9900 / 54.9) + 1)
     voltage_to_temp = {
         "J": {

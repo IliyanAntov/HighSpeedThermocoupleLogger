@@ -1,4 +1,5 @@
 from PC.Channel import Channel
+from PC.Parameters import Parameters
 
 
 class Record:
@@ -12,6 +13,10 @@ class Record:
         self.adc_buffer_size = 0
         self.usb_buffer_size = 0
         self.target_packet_count = 0
+
+        self.generator_log_interval_ms = Parameters.generator_log_interval_ms
+        self.generator_log_start_time_ms = Parameters.generator_log_start_time_ms
+        self.impedance_raw_data = []
 
         self.num_of_channels = number_of_channels
         self.channels = []
