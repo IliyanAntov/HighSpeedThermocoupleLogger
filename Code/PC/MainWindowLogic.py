@@ -42,10 +42,14 @@ class MainWindowLogic:
         self.connection_established = False
         self.connection_established_gen = False
 
+        self.log_parameter_names = None
+        self.log_data = None
+
         self.read_thread_gen = None
         self.read_thread_active = False
 
         self.waiting_for_trigger = False
+        self.receiving_temp_data = False
         self.save_impedance_data = False
         self.gen_log_received = False
 
@@ -386,7 +390,13 @@ class MainWindowLogic:
         selected_port = self.ui.GeneratorComPort.currentText()
 
         try:
-            self.serial_gen = serial.Serial(port=selected_port, baudrate=115200, write_timeout=1, timeout=1)
+            self.serial_gen = serial.Serial(port=selected_port,
+                                            baudrate=115200,
+                                            bytesize=8,
+                                            parity="N",
+                                            stopbits=1,
+                                            write_timeout=0.1,
+                                            timeout=0.1)
         except SerialException:
             return False
 
@@ -405,6 +415,8 @@ class MainWindowLogic:
             self.serial_gen.close()
             return False
 
+        self.serial_gen.timeout = 10
+
         self.read_thread_gen = threading.Thread(target=self.read_data_gen)
         self.read_thread_active = True
         self.read_thread_gen.start()
@@ -416,16 +428,24 @@ class MainWindowLogic:
     def read_data_gen(self):
         while self.read_thread_active:
             if self.serial_gen.inWaiting():
-                data_line = self.serial_gen.read_until(b'\r').decode().strip()
+                data_line = self.serial_gen.read_until(b"\r").decode().strip()
+                if data_line == Parameters.therapy_parameters_first_line:
+                    log = self.serial_gen.read_until(Parameters.therapy_parameters_last_line.encode()).decode()
+                    log_split = log.split("\r")
+                    self.log_parameter_names = log_split[0]
+                    self.log_data = log_split[1:-1]
+                    self.gen_log_received = True
+                    continue
+
                 item = QListWidgetItem(data_line)
                 if data_line == self.ui.GeneratorCommand.text():
                     item.setBackground(QColor("#b9c9fa"))
                 elif data_line == "generator>":
                     # item = QListWidgetItem("END")
                     item.setBackground(QColor("#dbdbdb"))
-                elif data_line == Parameters.therapy_parameters_last_line:
-                    self.gen_log_received = True
-                self.ui.GeneratorOutputList.addItem(item)
+
+                if data_line != "":
+                    self.ui.GeneratorOutputList.addItem(item)
 
     def disconnect_gen(self):
         self.read_thread_active = False
@@ -494,17 +514,19 @@ class MainWindowLogic:
             QApplication.processEvents()
         self.waiting_for_trigger = False
 
+        self.receiving_temp_data = True
         self.ui.MeasurementProgressText.setText("Receiving data from MCU...")
         self.ui.MeasurementProgressBar.setValue(4)
         self.measurement_receive_data()
-        self.ui.MeasurementProgressText.setText("Receiving measurement report from MCU...")
-        self.ui.MeasurementProgressBar.setValue(5)
-        self.measurement_receive_report()
+        self.receiving_temp_data = False
         if self.save_impedance_data:
             self.ui.MeasurementProgressText.setText("Reading impedance data from generator...")
-            self.ui.MeasurementProgressBar.setValue(6)
+            self.ui.MeasurementProgressBar.setValue(5)
             self.read_impedance_data()
             self.save_impedance_data = False
+        self.ui.MeasurementProgressText.setText("Receiving measurement report from MCU...")
+        self.ui.MeasurementProgressBar.setValue(6)
+        self.measurement_receive_report()
         self.ui.MeasurementProgressText.setText("Saving record...")
         self.ui.MeasurementProgressBar.setValue(7)
         self.measurement_save_record()
@@ -667,26 +689,15 @@ class MainWindowLogic:
         while not self.gen_log_received:
             QApplication.processEvents()
 
-        log_start_index = -1
-        log_end_index = -1
-        for i in range(self.ui.GeneratorOutputList.count() - 1, -1, -1):
-            if self.ui.GeneratorOutputList.item(i).text() == Parameters.therapy_parameters_last_line:
-                log_end_index = i
-            elif self.ui.GeneratorOutputList.item(i).text() == Parameters.therapy_parameters_first_line:
-                log_start_index = i + 1
-                break
-
-        parameter_names = self.ui.GeneratorOutputList.item(log_start_index).text()
-        parameter_names_list = parameter_names.split(",")
-        parameter_names_list = [x.strip() for x in parameter_names_list]
+        parameter_names_list = [x.strip() for x in self.log_parameter_names.split(",")]
         parameter_names_list = list(filter(None, parameter_names_list))
 
         parameter_dict = {}
         for name in parameter_names_list:
             parameter_dict[name] = []
 
-        for i in range(log_start_index + 1, log_end_index):
-            current_row = self.ui.GeneratorOutputList.item(i).text()
+        for i in range(len(self.log_data)):
+            current_row = self.log_data[i]
             current_row_list = current_row.split(",")
 
             parameter_index = 0
