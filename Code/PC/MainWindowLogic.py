@@ -45,8 +45,9 @@ class MainWindowLogic:
         self.read_thread_gen = None
         self.read_thread_active = False
 
-        self.measuring = False
+        self.waiting_for_trigger = False
         self.save_impedance_data = False
+        self.gen_log_received = False
 
     def run(self):
         self.ui.setupUi(self.form)
@@ -302,6 +303,7 @@ class MainWindowLogic:
         self.ui.DeleteRecordButton.clicked.connect(self.delete_selected_record)
 
     def assign_button_functions_gen(self):
+        self.ui.GeneratorCommand.setText("therapy start 50 36 20000 0 1000")
         self.ui.GeneratorConnectionButton.clicked.connect(self.connection_change_gen)
         self.ui.GeneratorSendCommandButton.clicked.connect(self.send_command_gen)
         self.ui.GeneratorOutputClearButton.clicked.connect(self.clear_output_gen)
@@ -414,18 +416,16 @@ class MainWindowLogic:
     def read_data_gen(self):
         while self.read_thread_active:
             if self.serial_gen.inWaiting():
-                data_full = self.serial_gen.read_until(b'>')
-                data_split = data_full.decode().split('\r')
-                data_split = filter(None, data_split)
-
-                for data_line in data_split:
-                    item = QListWidgetItem(data_line)
-                    if data_line == self.ui.GeneratorCommand.text():
-                        item.setBackground(QColor("#b9c9fa"))
-                    elif data_line == "generator>":
-                        # item = QListWidgetItem("END")
-                        item.setBackground(QColor("#dbdbdb"))
-                    self.ui.GeneratorOutputList.addItem(item)
+                data_line = self.serial_gen.read_until(b'\r').decode().strip()
+                item = QListWidgetItem(data_line)
+                if data_line == self.ui.GeneratorCommand.text():
+                    item.setBackground(QColor("#b9c9fa"))
+                elif data_line == "generator>":
+                    # item = QListWidgetItem("END")
+                    item.setBackground(QColor("#dbdbdb"))
+                elif data_line == Parameters.therapy_parameters_last_line:
+                    self.gen_log_received = True
+                self.ui.GeneratorOutputList.addItem(item)
 
     def disconnect_gen(self):
         self.read_thread_active = False
@@ -439,8 +439,9 @@ class MainWindowLogic:
         command = self.ui.GeneratorCommand.text()
         self.serial_gen.write(command.encode())
 
-        if "therapy" in command and self.measuring:
+        if "therapy start" in command and self.waiting_for_trigger:
             self.save_impedance_data = True
+            self.gen_log_received = False
 
         return
 
@@ -468,8 +469,6 @@ class MainWindowLogic:
             messagebox.exec()
             return
 
-        self.measuring = True
-
         number_of_steps = 8
         self.ui.MeasurementProgressText.setText("Preparing...")
         self.ui.MeasurementProgressBar.setRange(1, number_of_steps)
@@ -488,20 +487,24 @@ class MainWindowLogic:
             self.measurement_ui_enabled(False)
             return
 
+        self.waiting_for_trigger = True
         self.ui.MeasurementProgressText.setText("Waiting for trigger signal...")
         self.ui.MeasurementProgressBar.setValue(3)
         while not self.serial.inWaiting():
             QApplication.processEvents()
+        self.waiting_for_trigger = False
+
         self.ui.MeasurementProgressText.setText("Receiving data from MCU...")
         self.ui.MeasurementProgressBar.setValue(4)
         self.measurement_receive_data()
         self.ui.MeasurementProgressText.setText("Receiving measurement report from MCU...")
         self.ui.MeasurementProgressBar.setValue(5)
         self.measurement_receive_report()
-        self.ui.MeasurementProgressText.setText("Reading impedance data from generator...")
-        self.ui.MeasurementProgressBar.setValue(6)
-        QtTest.QTest.qWait(1000)
-        self.read_impedance_data()
+        if self.save_impedance_data:
+            self.ui.MeasurementProgressText.setText("Reading impedance data from generator...")
+            self.ui.MeasurementProgressBar.setValue(6)
+            self.read_impedance_data()
+            self.save_impedance_data = False
         self.ui.MeasurementProgressText.setText("Saving record...")
         self.ui.MeasurementProgressBar.setValue(7)
         self.measurement_save_record()
@@ -661,15 +664,17 @@ class MainWindowLogic:
             return tc_temperature
 
     def read_impedance_data(self):
+        while not self.gen_log_received:
+            QApplication.processEvents()
+
         log_start_index = -1
         log_end_index = -1
-        while log_end_index == -1 or log_start_index == -1:
-            for i in range(self.ui.GeneratorOutputList.count() - 1, -1, -1):
-                if self.ui.GeneratorOutputList.item(i).text() == Parameters.therapy_parameters_last_line:
-                    log_end_index = i
-                elif self.ui.GeneratorOutputList.item(i).text() == Parameters.therapy_parameters_first_line:
-                    log_start_index = i + 1
-                    break
+        for i in range(self.ui.GeneratorOutputList.count() - 1, -1, -1):
+            if self.ui.GeneratorOutputList.item(i).text() == Parameters.therapy_parameters_last_line:
+                log_end_index = i
+            elif self.ui.GeneratorOutputList.item(i).text() == Parameters.therapy_parameters_first_line:
+                log_start_index = i + 1
+                break
 
         parameter_names = self.ui.GeneratorOutputList.item(log_start_index).text()
         parameter_names_list = parameter_names.split(",")
@@ -709,6 +714,8 @@ class MainWindowLogic:
         # Reset channel data
         for channel in self.record.channels:
             channel.raw_data = []
+
+        self.record.impedance_raw_data = []
 
     def display_available_records(self):
         self.ui.RecordsList.clear()

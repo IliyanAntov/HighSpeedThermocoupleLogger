@@ -33,6 +33,19 @@ class PlotLogic:
         self.record_saved = Record()
         self.available_channel_records = []
 
+        self.fig = None
+        self.ax1 = None
+        self.ax2 = None
+        self.cursor_line = None
+        self.cursor_text = None
+        self.drag_event = None
+
+        self.cursor_font = {'family': 'monospace',
+                            'color':  'black',
+                            'weight': 'normal',
+                            'size': 10,
+                            }
+
     def run(self, record_file_name):
         self.ui.setupUi(self.form)
 
@@ -288,6 +301,10 @@ class PlotLogic:
     def plot(self):
         self.restore_saved_parameters()
 
+        impedance_values = None
+        y_data_values = None
+        y_prediction_values = None
+
         enabled_channels = list(x.available for x in self.record.channels).count(True)
         if not enabled_channels:
             messagebox = QMessageBox(QMessageBox.Critical,
@@ -298,30 +315,34 @@ class PlotLogic:
             self.form.setEnabled(True)
             return
 
-        fig, ax1 = plt.subplots()
-        ax2 = ax1.twinx()
+        self.fig, self.ax1 = plt.subplots()
+        self.ax2 = self.ax1.twinx()
 
         # Plotting impedance
-        impedance_list = self.record.impedance_raw_data
-        x_values = list(range(self.record.generator_log_start_time_ms,
-                              self.record.generator_log_start_time_ms + len(impedance_list),
-                              self.record.generator_log_interval_ms))
-        plt.axvspan(self.record.generator_log_start_time_ms,
-                    self.record.generator_log_start_time_ms + len(impedance_list) - 1,
-                    facecolor='0.2',
-                    alpha=0.2)
+        impedance_values = self.record.impedance_raw_data
+        if impedance_values:
+            x_values = list(range(self.record.generator_log_start_time_ms,
+                                  self.record.generator_log_start_time_ms + len(impedance_values),
+                                  self.record.generator_log_interval_ms))
+            plt.axvspan(self.record.generator_log_start_time_ms,
+                        self.record.generator_log_start_time_ms + len(impedance_values) - 1,
+                        facecolor='0.2',
+                        alpha=0.15)
 
-        ax2.plot(x_values, impedance_list, color="Black", label="Impedance")
-        ax2.set_xlabel("Time [ms]")
-        ax2.set_ylabel("Impedance [Ohm]")
-        impedance_axis_max = math.ceil(max(impedance_list)/1000.0) * 1000
-        ax2.set_ylim([0, impedance_axis_max])
-        ticker = matplotlib.ticker.EngFormatter(unit='', sep="")
-        ax2.yaxis.set_major_formatter(ticker)
+            self.ax2.plot(x_values, impedance_values, color="Black", label="Impedance")
+
+            self.ax2.set_xlabel("Time [ms]")
+            self.ax2.set_ylabel("Impedance [Ω]")
+            impedance_axis_max = math.ceil(max(impedance_values)/1000.0) * 1000
+            self.ax2.set_ylim([0, impedance_axis_max])
+            ticker = matplotlib.ticker.EngFormatter(unit='', sep="")
+            self.ax2.yaxis.set_major_formatter(ticker)
 
         # Plotting temperature
         channel_colors = ["red", "blue", "green", "orange"]
         x_values = np.linspace(0, self.record.length_ms, int(self.record.length_ms/(self.record.interval_us/1000)))
+        x_values = np.round(x_values, math.ceil(math.log10(1000 / self.record.interval_us)))
+
         y_max = None
         for i in range(self.record.num_of_channels):
             if not self.record.channels[i].available:
@@ -341,7 +362,7 @@ class PlotLogic:
             if y_max is None or max(y_data_values) > y_max:
                 y_max = max(y_data_values)
 
-            ax1.plot(x_values, y_data_values, color=channel_colors[i], label=data_label)
+            self.ax1.plot(x_values, y_data_values, color=channel_colors[i], label=data_label)
 
             # Prediction plot
             if not self.record.channels[i].temperature_prediction_enabled:
@@ -362,15 +383,101 @@ class PlotLogic:
                 y_max = max(y_prediction_values)
 
             x_values_prediction = x_values[:len(x_values) - self.record.channels[i].prediction_queue_length]
-            ax1.plot(x_values_prediction, y_prediction_values, color=channel_colors[i], linestyle="dashed", label=prediction_label)
+            self.ax1.plot(x_values_prediction, y_prediction_values, color=channel_colors[i], linestyle="dashed", label=prediction_label)
 
         plt.title(self.record_file_name.replace(".json", ""), pad=15)
-        ax1.set_xlabel("Time [ms]")
-        ax1.set_ylabel("Temperature [°C]")
+        self.ax1.set_xlabel("Time [ms]")
+        self.ax1.set_ylabel("Temperature [°C]")
         plt.figlegend()
-        plt.grid()
+        self.ax1.grid()
         plt.tight_layout()
         plt.show()
+
+        # Cursors
+        self.fig.canvas.draw()
+        self.fig.my_bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
+
+        self.cursor_line = plt.axvline(0, color='blue', ls='--', lw=1)
+        self.cursor_text = plt.text(0, 0, "", fontdict=self.cursor_font)
+        self.cursor_text.set_bbox(dict(facecolor="yellow", alpha=1))
+
+        y_axis_names_values = {"     Z[Ω]": impedance_values,
+                               "Treal[°C]": y_data_values,
+                               "Tpred[°C]": y_prediction_values}
+        self.fig.canvas.mpl_connect("button_press_event", lambda event: self.drag_cursor(event, y_axis_names_values))
+        self.fig.canvas.mpl_connect("button_release_event", self.release_cursor)
+        self.fig.canvas.mpl_connect("resize_event", self.window_resize)
+        self.ax2.callbacks.connect("ylim_changed", self.window_resize)
+
+    def drag_cursor(self, event, y_axis_names_values):
+        if event.button == 1:
+            self.hide_cursor()
+            return
+        self.drag_event = self.fig.canvas.mpl_connect("motion_notify_event", lambda evt: self.show_cursor(evt, y_axis_names_values))
+        return
+
+    def release_cursor(self, event):
+        self.fig.canvas.mpl_disconnect(self.drag_event)
+        return
+
+    def show_cursor(self, event, y_axis_names_values):
+        time_value = event.xdata
+
+        if time_value is None:
+            return
+
+        round_base = self.record.interval_us / 1000.0
+        round_precision = math.ceil(math.log10(1000 / self.record.interval_us))
+
+        time_value_rounded = round(round_base * round(time_value / round_base), round_precision)
+
+        # time_value_rounded = round(time_value, math.ceil(math.log10(1000 / self.record.interval_us)))
+
+        temperature_index = round(time_value / (self.record.interval_us / 1000.0))
+        impedance_index = round(time_value / self.record.generator_log_interval_ms - self.record.generator_log_start_time_ms)
+
+        self.cursor_line.set_xdata(time_value_rounded)
+
+        annotation_text = f" Time[ms]: {time_value_rounded:.2f}\n"
+        for name, values in y_axis_names_values.items():
+            if "Ω" in name:
+                if values is not None and len(values) > impedance_index > 0:
+                    annotation_text += f"{name}: {values[impedance_index]}\n"
+            else:
+                if values is not None and len(values) > temperature_index > 0:
+                    annotation_text += f"{name}: {values[temperature_index]:.2f}\n"
+
+        annotation_text = annotation_text.strip("\n")
+        self.cursor_text.set_position((event.xdata, event.ydata))
+        self.cursor_text.set_text(annotation_text)
+
+        self.fig.canvas.restore_region(self.fig.my_bg)
+        self.fig.draw_artist(self.cursor_line)
+        self.fig.draw_artist(self.cursor_text)
+        self.fig.canvas.blit()
+        # print(annotation_text)
+
+    def hide_cursor(self):
+        self.fig.canvas.restore_region(self.fig.my_bg)
+        self.fig.canvas.blit()
+
+    def window_resize(self, event):
+        cursor_line_x = self.cursor_line.get_xdata()[0]
+        cursor_text_coords = self.cursor_text.get_position()
+        cursor_text = self.cursor_text.get_text()
+        self.cursor_line.remove()
+        self.cursor_text.remove()
+        self.fig.canvas.draw()
+        self.fig.my_bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
+
+        self.cursor_line = plt.axvline(cursor_line_x, color='blue', ls=':', lw=2)
+        self.cursor_text = plt.text(cursor_text_coords[0], cursor_text_coords[1], cursor_text, fontdict=self.cursor_font)
+        self.cursor_text.set_bbox(dict(facecolor="yellow", alpha=1))
+        self.fig.canvas.restore_region(self.fig.my_bg)
+        self.fig.draw_artist(self.cursor_line)
+        self.fig.draw_artist(self.cursor_text)
+        self.fig.canvas.blit()
+        return
 
     def apply_low_pass_filter(self, data, order, corner_frequency_khz):
         cutoff_freq_khz = (1 / self.record.interval_us) * 1000
