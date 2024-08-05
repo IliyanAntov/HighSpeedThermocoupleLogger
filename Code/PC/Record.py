@@ -16,7 +16,10 @@ class Record:
 
         self.generator_log_interval_ms = Parameters.generator_log_interval_ms
         self.generator_log_start_time_ms = Parameters.generator_log_start_time_ms
-        self.impedance_raw_data = []
+        self.generator_raw_data = {}
+
+        # NOTE: for backwards compatibility
+        self.impedance_raw_data = None
 
         self.num_of_channels = number_of_channels
         self.channels = []

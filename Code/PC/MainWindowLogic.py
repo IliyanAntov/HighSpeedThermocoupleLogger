@@ -429,7 +429,7 @@ class MainWindowLogic:
         while self.read_thread_active:
             if self.serial_gen.inWaiting():
                 data_line = self.serial_gen.read_until(b"\r").decode().strip()
-                if data_line == Parameters.therapy_parameters_first_line:
+                if data_line == Parameters.therapy_parameters_first_line and self.save_impedance_data:
                     log = self.serial_gen.read_until(Parameters.therapy_parameters_last_line.encode()).decode()
                     log_split = log.split("\r")
                     self.log_parameter_names = log_split[0]
@@ -705,9 +705,13 @@ class MainWindowLogic:
                 parameter_dict[key].append(current_row_list[parameter_index])
                 parameter_index += 1
 
-        impedance_list = parameter_dict[Parameters.therapy_impedance_column_name]
-        impedance_list_int = [int(x) for x in impedance_list]
-        self.record.impedance_raw_data = impedance_list_int
+        for parameter in ["U", "I", "Z", "P", "Phase"]:
+            parameter_list = parameter_dict[Parameters.log_column_names[parameter]]
+            parameter_list_float = [round(float(x) * Parameters.log_column_scales[parameter],
+                                          Parameters.log_meaningful_float_characters[parameter])
+                                    for x in parameter_list]
+
+            self.record.generator_raw_data[parameter] = parameter_list_float
 
     def measurement_save_record(self):
         # Save received data

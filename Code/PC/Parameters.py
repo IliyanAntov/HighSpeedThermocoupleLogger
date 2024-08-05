@@ -8,7 +8,27 @@ class Parameters:
     generator_log_start_time_ms = 50
     therapy_parameters_first_line = "Therapy parameters:"
     therapy_parameters_last_line = "-End-"
-    therapy_impedance_column_name = "Z[Ohm]"
+    log_column_names = {
+        "U": "U[10mV]",
+        "I": "I[100uA]",
+        "Z": "Z[Ohm]",
+        "P": "P[uW]",
+        "Phase": "F[Deg]"
+    }
+    log_column_scales = {
+        "U": 10 * 10**-3,
+        "I": 100 * 10**-6,
+        "Z": 1,
+        "P": 10**-6,
+        "Phase": 1
+    }
+    log_meaningful_float_characters = {
+        "U": 2,
+        "I": 4,
+        "Z": 0,
+        "P": 6,
+        "Phase": 2
+    }
 
     record_length_ms_min_max = {
         "min": 1,

@@ -2,6 +2,7 @@ import copy
 import json
 import math
 import multiprocessing
+import os
 import sys
 from functools import partial
 from multiprocessing import Pool
@@ -9,6 +10,8 @@ from multiprocessing import Pool
 import jsonpickle
 import matplotlib
 import numpy as np
+from matplotlib.backend_tools import ToolBase
+from pandas import DataFrame, Series
 from scipy import signal
 
 from PyQt5.QtCore import QRegularExpression
@@ -21,6 +24,14 @@ from PlotWindowUI import Ui_Form
 from PyQt5 import QtWidgets
 import matplotlib.pyplot as plt
 
+if not sys.warnoptions:
+    import warnings
+    warnings.filterwarnings("ignore", category=UserWarning,
+                            message="Treat the new Tool classes introduced in v1.5 as experimental for now")
+
+matplotlib.rcParams["toolbar"] = "toolmanager"
+plot_data = {}
+plot_name = ""
 
 class PlotLogic:
     def __init__(self):
@@ -32,6 +43,8 @@ class PlotLogic:
         self.record = Record()
         self.record_saved = Record()
         self.available_channel_records = []
+
+        self.changes_made = False
 
         self.fig = None
         self.ax1 = None
@@ -50,6 +63,8 @@ class PlotLogic:
         self.ui.setupUi(self.form)
 
         self.record_file_name = record_file_name
+        global plot_name
+        plot_name = self.record_file_name
         self.form.setWindowTitle(self.record_file_name.replace(".json", ""))
         self.load_data()
 
@@ -72,6 +87,8 @@ class PlotLogic:
                 widget.setEnabled(False)
 
         self.ui.ViewPlotButton.setEnabled(True)
+        if self.changes_made:
+            self.ui.SaveChangesButton.setEnabled(True)
         self.ui.RecordLengthValue.setValue(self.record.length_ms)
         self.ui.RecordIntervalValue.setValue(self.record.interval_us)
 
@@ -240,6 +257,7 @@ class PlotLogic:
         self.ui.ViewPlotButton.clicked.connect(self.plot)
         self.ui.ApplyButton.clicked.connect(self.update_parameters)
         self.ui.CancelButton.clicked.connect(self.restore_saved_parameters)
+        self.ui.SaveChangesButton.clicked.connect(self.save_changes)
 
     def load_data(self):
         with open(Parameters.record_folder_dir + self.record_file_name) as record_file:
@@ -285,6 +303,10 @@ class PlotLogic:
         self.record_saved = copy.deepcopy(self.record)
 
     def update_parameters(self):
+        if not self.changes_made:
+            self.ui.SaveChangesButton.setEnabled(True)
+            self.changes_made = True
+
         self.record_saved = copy.deepcopy(self.record)
         for i in range(self.record.num_of_channels):
             if self.record.channels[i].available:
@@ -298,8 +320,21 @@ class PlotLogic:
                 self.display_saved_parameter_values(i)
         self.update_enabled_widgets()
 
+    def save_changes(self):
+        jsonpickle.set_encoder_options('json', indent=4)
+        output_json = jsonpickle.encode(self.record)
+
+        with open(str(Parameters.record_folder_dir + self.record_file_name), "w") as output_file:
+            output_file.writelines(output_json)
+
+        self.load_data()
+        self.changes_made = False
+        self.ui.SaveChangesButton.setEnabled(False)
+
     def plot(self):
         self.restore_saved_parameters()
+        global plot_data
+        plot_data = {}
 
         impedance_values = None
         y_data_values = None
@@ -318,18 +353,29 @@ class PlotLogic:
         self.fig, self.ax1 = plt.subplots()
         self.ax2 = self.ax1.twinx()
 
+        x_values = np.linspace(0, self.record.length_ms, int(self.record.length_ms/(self.record.interval_us/1000)))
+        x_values = np.round(x_values, math.ceil(math.log10(1000 / self.record.interval_us)))
+        plot_data["Time[ms]"] = x_values
+
         # Plotting impedance
-        impedance_values = self.record.impedance_raw_data
-        if impedance_values:
-            x_values = list(range(self.record.generator_log_start_time_ms,
-                                  self.record.generator_log_start_time_ms + len(impedance_values),
-                                  self.record.generator_log_interval_ms))
+        try:
+            impedance_values = self.record.generator_raw_data["Z"]
+        except AttributeError:
+            impedance_values = self.record.impedance_raw_data
+        except KeyError:
+            impedance_values = None
+
+        if impedance_values is not None:
+            x_values_imp = list(range(self.record.generator_log_start_time_ms,
+                                      self.record.generator_log_start_time_ms + len(impedance_values),
+                                      self.record.generator_log_interval_ms))
             plt.axvspan(self.record.generator_log_start_time_ms,
                         self.record.generator_log_start_time_ms + len(impedance_values) - 1,
                         facecolor='0.2',
                         alpha=0.15)
 
-            self.ax2.plot(x_values, impedance_values, color="Black", label="Impedance")
+            plot_data["Z[Ω]"] = impedance_values
+            self.ax2.plot(x_values_imp, impedance_values, color="Black", label="Impedance")
 
             self.ax2.set_xlabel("Time [ms]")
             self.ax2.set_ylabel("Impedance [Ω]")
@@ -340,8 +386,6 @@ class PlotLogic:
 
         # Plotting temperature
         channel_colors = ["red", "blue", "green", "orange"]
-        x_values = np.linspace(0, self.record.length_ms, int(self.record.length_ms/(self.record.interval_us/1000)))
-        x_values = np.round(x_values, math.ceil(math.log10(1000 / self.record.interval_us)))
 
         y_max = None
         for i in range(self.record.num_of_channels):
@@ -362,6 +406,7 @@ class PlotLogic:
             if y_max is None or max(y_data_values) > y_max:
                 y_max = max(y_data_values)
 
+            plot_data["Treal[°C]"] = y_data_values
             self.ax1.plot(x_values, y_data_values, color=channel_colors[i], label=data_label)
 
             # Prediction plot
@@ -383,6 +428,7 @@ class PlotLogic:
                 y_max = max(y_prediction_values)
 
             x_values_prediction = x_values[:len(x_values) - self.record.channels[i].prediction_queue_length]
+            plot_data["Tpred[°C]"] = y_prediction_values
             self.ax1.plot(x_values_prediction, y_prediction_values, color=channel_colors[i], linestyle="dashed", label=prediction_label)
 
         plt.title(self.record_file_name.replace(".json", ""), pad=15)
@@ -390,6 +436,12 @@ class PlotLogic:
         self.ax1.set_ylabel("Temperature [°C]")
         plt.figlegend()
         self.ax1.grid()
+
+        # Save to Excel button
+        tm = self.fig.canvas.manager.toolmanager
+        tm.add_tool("Save to Excel", SaveToExcelButton)
+        self.fig.canvas.manager.toolbar.add_tool(tm.get_tool("Save to Excel"), "toolgroup")
+
         plt.tight_layout()
         plt.show()
 
@@ -448,7 +500,7 @@ class PlotLogic:
                     annotation_text += f"{name}: {values[temperature_index]:.2f}\n"
 
         annotation_text = annotation_text.strip("\n")
-        self.cursor_text.set_position((event.xdata, event.ydata))
+        self.cursor_text.set_position((event.xdata + (self.ax1.get_xlim()[1] - self.ax1.get_xlim()[0])*0.035, event.ydata))
         self.cursor_text.set_text(annotation_text)
 
         self.fig.canvas.restore_region(self.fig.my_bg)
@@ -553,6 +605,37 @@ class PlotLogic:
     #         y_short.append(data_point)
     #
     #     return predictions
+
+
+class SaveToExcelButton(ToolBase):
+    def trigger(self, *args, **kwargs):
+        global plot_data, plot_name
+
+        options = QtWidgets.QFileDialog.Options()
+        file_name, _ = QtWidgets.QFileDialog.getSaveFileName(parent=None,
+                                                             caption="Save File",
+                                                             directory=plot_name.replace(".json", ".xlsx"),
+                                                             filter="Excel files(*.xlsx *.xls *.xlsm *.xlt);;"
+                                                                    "CSV files(*.csv)",
+                                                             options=options)
+
+        if not file_name:
+            return
+        df = DataFrame.from_dict(plot_data, orient="index")
+        df = df.transpose()
+        if "Z[Ω]" in df:
+            impedance_column = df.pop("Z[Ω]")
+            impedance_time_column = list(range(Parameters.generator_log_start_time_ms,
+                                               Parameters.generator_log_start_time_ms + len(plot_data["Z[Ω]"]),
+                                               Parameters.generator_log_interval_ms))
+            df[""] = np.nan
+            df["Generator time[ms]"] = Series(impedance_time_column)
+            df["Z[Ω]"] = impedance_column
+
+        if "csv" in file_name:
+            df.to_csv(file_name, sep=",", encoding="utf-8 sig", index=False)
+        else:
+            df.to_excel(file_name, index=False)
 
 # NOTE: Debugging code
 # if __name__ == "__main__":
