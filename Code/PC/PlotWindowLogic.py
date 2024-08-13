@@ -33,13 +33,15 @@ matplotlib.rcParams["toolbar"] = "toolmanager"
 plot_data = {}
 plot_name = ""
 
+
 class PlotLogic:
-    def __init__(self):
+    def __init__(self, current_folder):
         # NOTE: Debugging code
         # self.app = QtWidgets.QApplication(sys.argv)
         self.ui = Ui_Form()
         self.form = QtWidgets.QWidget()
         self.record_file_name = None
+        self.current_folder = current_folder
         self.record = Record()
         self.record_saved = Record()
         self.available_channel_records = []
@@ -260,7 +262,7 @@ class PlotLogic:
         self.ui.SaveChangesButton.clicked.connect(self.save_changes)
 
     def load_data(self):
-        with open(Parameters.record_folder_dir + self.record_file_name) as record_file:
+        with open(self.current_folder + self.record_file_name) as record_file:
             file_raw = record_file.read()
             self.record = jsonpickle.decode(file_raw)
 
@@ -360,8 +362,13 @@ class PlotLogic:
         # Plotting impedance
         try:
             impedance_values = self.record.generator_raw_data["Z"]
+            plot_data.update(self.record.generator_raw_data)
         except AttributeError:
-            impedance_values = self.record.impedance_raw_data
+            try:
+                impedance_values = self.record.impedance_raw_data
+                plot_data["Z"] = impedance_values
+            except AttributeError:
+                impedance_values = None
         except KeyError:
             impedance_values = None
 
@@ -374,7 +381,6 @@ class PlotLogic:
                         facecolor='0.2',
                         alpha=0.15)
 
-            plot_data["Z[Ω]"] = impedance_values
             self.ax2.plot(x_values_imp, impedance_values, color="Black", label="Impedance")
 
             self.ax2.set_xlabel("Time [ms]")
@@ -485,17 +491,16 @@ class PlotLogic:
 
         # time_value_rounded = round(time_value, math.ceil(math.log10(1000 / self.record.interval_us)))
 
-        temperature_index = round(time_value / (self.record.interval_us / 1000.0))
-        impedance_index = round(time_value / self.record.generator_log_interval_ms - self.record.generator_log_start_time_ms)
-
         self.cursor_line.set_xdata(time_value_rounded)
 
         annotation_text = f" Time[ms]: {time_value_rounded:.2f}\n"
         for name, values in y_axis_names_values.items():
-            if "Ω" in name:
+            if "Ω" in name and values is not None:
+                impedance_index = round(time_value / self.record.generator_log_interval_ms - self.record.generator_log_start_time_ms)
                 if values is not None and len(values) > impedance_index > 0:
                     annotation_text += f"{name}: {values[impedance_index]}\n"
             else:
+                temperature_index = round(time_value / (self.record.interval_us / 1000.0))
                 if values is not None and len(values) > temperature_index > 0:
                     annotation_text += f"{name}: {values[temperature_index]:.2f}\n"
 
@@ -623,19 +628,37 @@ class SaveToExcelButton(ToolBase):
             return
         df = DataFrame.from_dict(plot_data, orient="index")
         df = df.transpose()
-        if "Z[Ω]" in df:
-            impedance_column = df.pop("Z[Ω]")
+
+        if "Z" in df:
+            impedance_column = df.pop("Z")
             impedance_time_column = list(range(Parameters.generator_log_start_time_ms,
-                                               Parameters.generator_log_start_time_ms + len(plot_data["Z[Ω]"]),
+                                               Parameters.generator_log_start_time_ms + len(plot_data["Z"]),
                                                Parameters.generator_log_interval_ms))
             df[""] = np.nan
             df["Generator time[ms]"] = Series(impedance_time_column)
             df["Z[Ω]"] = impedance_column
 
-        if "csv" in file_name:
-            df.to_csv(file_name, sep=",", encoding="utf-8 sig", index=False)
-        else:
-            df.to_excel(file_name, index=False)
+            if "U" in df:
+                voltage_column = df.pop("U")
+                current_column = df.pop("I")
+                power_column = df.pop("P")
+                phase_column = df.pop("Phase")
+                df["U[V]"] = voltage_column
+                df["I[A]"] = current_column
+                df["P[W]"] = power_column
+                df["Phase[°]"] = phase_column
+
+        try:
+            if "csv" in file_name:
+                df.to_csv(file_name, sep=",", encoding="utf-8 sig", index=False)
+            else:
+                df.to_excel(file_name, index=False)
+        except PermissionError:
+            messagebox = QMessageBox(QMessageBox.Critical,
+                                     "File save error",
+                                     "File is in use!",
+                                     QMessageBox.Ok)
+            messagebox.exec()
 
 # NOTE: Debugging code
 # if __name__ == "__main__":

@@ -12,7 +12,7 @@ import keyboard
 import serial
 import serial.tools.list_ports
 from PyQt5.QtCore import QRegularExpression, Qt, QSize, QEventLoop, QTimer, pyqtSignal, QObject
-from PyQt5.QtGui import QKeyEvent, QColor
+from PyQt5.QtGui import QKeyEvent, QColor, QIcon
 from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import *
 from PyQt5.uic.properties import QtCore
@@ -36,6 +36,7 @@ class MainWindowLogic:
         self.app.setWindowIcon(QtGui.QIcon("UI/icon.png"))
         self.app.aboutToQuit.connect(self.stop_serial_ports)
         self.form = QtWidgets.QWidget()
+        self.current_folder = Parameters.record_folder_dir
         self.record = Record(number_of_channels=4)
         self.serial = None
         self.serial_gen = None
@@ -57,13 +58,10 @@ class MainWindowLogic:
         self.ui.setupUi(self.form)
         self.form.setWindowTitle("High Speed Thermocouple Logger")
 
+        self.ui.CurrentDirectoryLine.setText(self.current_folder)
+        self.ui.DirectoryUpButton.setIcon(QIcon("./UI/folder_up.png"))
         self.ui.RecordLengthValue.setValue(self.record.length_ms)
         self.ui.RecordIntervalValue.setValue(self.record.interval_us)
-
-        # Logger UI
-        self.update_enabled_widgets()
-        self.assign_button_functions()
-        self.display_available_records()
 
         # Generator UI
         self.set_available_comports_gen()
@@ -71,6 +69,11 @@ class MainWindowLogic:
         self.assign_button_functions_gen()
 
         self.form.show()
+
+        # Logger UI
+        self.update_enabled_widgets()
+        self.assign_button_functions()
+        self.display_available_records()
 
         sys.exit(self.app.exec_())
 
@@ -302,12 +305,15 @@ class MainWindowLogic:
         self.ui.RecordLengthValue.editingFinished.connect(self.record_length_changed)
         self.ui.RecordIntervalValue.editingFinished.connect(self.record_interval_changed)
 
+        self.ui.RecordsList.itemDoubleClicked.connect(self.view_selected_record)
+        self.ui.DirectoryUpButton.clicked.connect(self.directory_up)
+
         self.ui.ViewRecordButton.clicked.connect(self.view_selected_record)
         self.ui.RenameRecordButton.clicked.connect(self.rename_selected_record)
         self.ui.DeleteRecordButton.clicked.connect(self.delete_selected_record)
 
     def assign_button_functions_gen(self):
-        self.ui.GeneratorCommand.setText("therapy start 50 36 20000 0 1000")
+        self.ui.GeneratorCommand.setText("therapy start 25 65 25000 0 1000")
         self.ui.GeneratorConnectionButton.clicked.connect(self.connection_change_gen)
         self.ui.GeneratorSendCommandButton.clicked.connect(self.send_command_gen)
         self.ui.GeneratorOutputClearButton.clicked.connect(self.clear_output_gen)
@@ -326,6 +332,8 @@ class MainWindowLogic:
         self.ui.ChannelEnabled_2.setShortcut("Ctrl+2")
         self.ui.ChannelEnabled_3.setShortcut("Ctrl+3")
         self.ui.ChannelEnabled_4.setShortcut("Ctrl+4")
+        self.ui.RenameRecordButton.setShortcut("F2")
+        self.ui.DeleteRecordButton.setShortcut("Delete")
 
     def vcp_connection_change(self):
         if self.connection_established:
@@ -721,7 +729,7 @@ class MainWindowLogic:
         jsonpickle.set_encoder_options('json', indent=4)
         output_json = jsonpickle.encode(self.record)
 
-        with open(str(Parameters.record_folder_dir + record_file_name), "w") as output_file:
+        with open(str(self.current_folder + record_file_name), "w") as output_file:
             output_file.writelines(output_json)
 
         self.display_available_records()
@@ -733,32 +741,63 @@ class MainWindowLogic:
         self.record.impedance_raw_data = []
 
     def display_available_records(self):
+        self.ui.CurrentDirectoryLine.setText(self.current_folder)
+
         self.ui.RecordsList.clear()
-        self.ui.RecordsList.setItemAlignment(Qt.AlignRight)
-        record_list = os.listdir(Parameters.record_folder_dir)
+        self.ui.RecordsList.setItemAlignment(Qt.AlignLeft)
+
+        root, dir_list, record_list = next(os.walk(self.current_folder))
+        folder_icon = QIcon("./UI/folder.png")
+        temp_item = QListWidgetItem("_-_temp_-_")
+        self.ui.RecordsList.addItem(temp_item)
+
+        for directory in dir_list:
+            item = QListWidgetItem(directory)
+            item.setIcon(folder_icon)
+            item.setTextAlignment(Qt.AlignLeft)
+            item.setBackground(QColor("#fff0d6"))
+            item.setSizeHint(QSize(2000, self.ui.RecordsList.sizeHintForRow(0)))
+            self.ui.RecordsList.addItem(item)
+
+        first_item = None
         for record in record_list:
             if ".json" not in record:
                 continue
             item = QListWidgetItem(record.replace(".json", ""))
-            item.setTextAlignment(Qt.AlignRight)
+            item.setTextAlignment(Qt.AlignLeft)
+            item.setSizeHint(QSize(2000, self.ui.RecordsList.sizeHintForRow(0)))
 
             date_in_name = record.split("-")[0]
             try:
                 int(date_in_name)
-                self.ui.RecordsList.insertItem(0, item)
+                self.ui.RecordsList.insertItem(len(dir_list) + 1, item)
+                first_item = item
             except ValueError:
                 self.ui.RecordsList.addItem(item)
 
-        self.ui.RecordsList.setCurrentRow(0)
+        self.ui.RecordsList.takeItem(self.ui.RecordsList.row(temp_item))
+        self.ui.RecordsList.setCurrentItem(first_item)
 
     def view_selected_record(self):
         selected_record = self.ui.RecordsList.currentItem()
         if not selected_record:
             return
 
-        selected_record_file_name = selected_record.text() + ".json"
-        plot_window = PlotLogic()
+        if os.path.isdir(self.current_folder + selected_record.text()):
+            self.current_folder = self.current_folder + selected_record.text() + "/"
+            self.display_available_records()
+            return
+
+        selected_record_file_name = selected_record.text()
+        plot_window = PlotLogic(self.current_folder)
         plot_window.run(selected_record_file_name)
+
+    def directory_up(self):
+        current_directory_levels = self.current_folder.rstrip("/").split("/")
+        if len(current_directory_levels) > 1:
+            self.current_folder = "/".join(current_directory_levels[:-1])
+            self.current_folder += "/"
+            self.display_available_records()
 
     def rename_selected_record(self):
         selected_record = self.ui.RecordsList.currentItem()
@@ -767,14 +806,18 @@ class MainWindowLogic:
 
         current_name = selected_record.text()
         new_name, ok = QtWidgets.QInputDialog.getText(self.ui.RecordsList,
-                                                      "Rename record",
-                                                      "New record name:",
+                                                      "Rename",
+                                                      "New name:",
                                                       QLineEdit.Normal,
                                                       current_name)
         if not (ok and new_name):
             return
 
-        os.rename(str(Parameters.record_folder_dir + current_name + ".json"), str(Parameters.record_folder_dir + new_name + ".json"))
+        if not os.path.isdir(str(self.current_folder + current_name + "/")):
+            new_name += ".json"
+            current_name += ".json"
+
+        os.rename(str(self.current_folder + current_name), str(self.current_folder + new_name))
         self.display_available_records()
 
     def delete_selected_record(self):
@@ -783,6 +826,9 @@ class MainWindowLogic:
             return
 
         selected_record_name = selected_record.text()
+
+        if os.path.isdir(self.current_folder + selected_record_name + "/"):
+            return
 
         messagebox = QMessageBox(QMessageBox.Question,
                                  "Confirm delete",
@@ -793,7 +839,7 @@ class MainWindowLogic:
         if response == QMessageBox.No:
             return
 
-        os.remove(str(Parameters.record_folder_dir + selected_record_name + ".json"))
+        os.remove(str(self.current_folder + selected_record_name + ".json"))
         self.display_available_records()
         self.ui.RecordsList.setCurrentRow(0)
 
