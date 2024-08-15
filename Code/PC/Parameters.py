@@ -15,6 +15,20 @@ class Parameters:
         "P": "P[uW]",
         "Phase": "F[Deg]"
     }
+    excel_column_names = {
+        "U": "U[V]",
+        "I": "I[A]",
+        "Z": "Z[Ω]",
+        "P": "P[W]",
+        "Phase": "φ[°]"
+    }
+    plot_label_names = {
+        "U": "Voltage",
+        "I": "Current",
+        "Z": "Impedance",
+        "P": "Power",
+        "Phase": "Phase"
+    }
     log_column_scales = {
         "U": 10 * 10**-3,
         "I": 100 * 10**-6,

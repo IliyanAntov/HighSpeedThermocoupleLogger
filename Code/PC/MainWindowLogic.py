@@ -1,22 +1,16 @@
-import json
 import math
 import os
 import threading
-import time
 from datetime import datetime
-from pprint import pprint
-from threading import Thread
 
 import jsonpickle as jsonpickle
-import keyboard
 import serial
 import serial.tools.list_ports
-from PyQt5.QtCore import QRegularExpression, Qt, QSize, QEventLoop, QTimer, pyqtSignal, QObject
-from PyQt5.QtGui import QKeyEvent, QColor, QIcon
-from PyQt5.QtTest import QTest
+from PyQt5.QtCore import QRegularExpression, Qt, QSize
+from PyQt5.QtGui import QColor, QIcon
 from PyQt5.QtWidgets import *
-from PyQt5.uic.properties import QtCore
 from PyQt5.QtWidgets import QApplication
+from send2trash import send2trash
 from serial import SerialTimeoutException, SerialException
 
 from PC.MainWindowUI import Ui_Form
@@ -24,7 +18,7 @@ from PC.Record import Record
 from PC.Parameters import Parameters
 from PlotWindowLogic import PlotLogic
 
-from PyQt5 import QtWidgets, QtTest, QtGui
+from PyQt5 import QtWidgets, QtGui
 import sys
 
 
@@ -51,7 +45,7 @@ class MainWindowLogic:
 
         self.waiting_for_trigger = False
         self.receiving_temp_data = False
-        self.save_impedance_data = False
+        self.save_generator_log = False
         self.gen_log_received = False
 
     def run(self):
@@ -121,7 +115,7 @@ class MainWindowLogic:
 
         # Enable channels
         if status:
-            channel_enable_checkbox_names = QRegularExpression("ChannelEnabled_\d")
+            channel_enable_checkbox_names = QRegularExpression(r"ChannelEnabled_\d")
             channel_enable_checkbox_widgets = self.form.findChildren(QCheckBox, channel_enable_checkbox_names)
             for widget in channel_enable_checkbox_widgets:
                 widget.setEnabled(True)
@@ -437,7 +431,7 @@ class MainWindowLogic:
         while self.read_thread_active:
             if self.serial_gen.inWaiting():
                 data_line = self.serial_gen.read_until(b"\r").decode().strip()
-                if data_line == Parameters.therapy_parameters_first_line and self.save_impedance_data:
+                if data_line == Parameters.therapy_parameters_first_line and self.save_generator_log:
                     log = self.serial_gen.read_until(Parameters.therapy_parameters_last_line.encode()).decode()
                     log_split = log.split("\r")
                     self.log_parameter_names = log_split[0]
@@ -468,8 +462,9 @@ class MainWindowLogic:
         self.serial_gen.write(command.encode())
 
         if "therapy start" in command and self.waiting_for_trigger:
-            self.save_impedance_data = True
+            self.save_generator_log = True
             self.gen_log_received = False
+            self.record.generator_command = command
 
         return
 
@@ -527,11 +522,11 @@ class MainWindowLogic:
         self.ui.MeasurementProgressBar.setValue(4)
         self.measurement_receive_data()
         self.receiving_temp_data = False
-        if self.save_impedance_data:
+        if self.save_generator_log:
             self.ui.MeasurementProgressText.setText("Reading impedance data from generator...")
             self.ui.MeasurementProgressBar.setValue(5)
             self.read_impedance_data()
-            self.save_impedance_data = False
+            self.save_generator_log = False
         self.ui.MeasurementProgressText.setText("Receiving measurement report from MCU...")
         self.ui.MeasurementProgressBar.setValue(6)
         self.measurement_receive_report()
@@ -725,6 +720,7 @@ class MainWindowLogic:
         # Save received data
         time_now_formatted = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         record_file_name = time_now_formatted + ".json"
+        self.record.log_date_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
 
         jsonpickle.set_encoder_options('json', indent=4)
         output_json = jsonpickle.encode(self.record)
@@ -788,9 +784,9 @@ class MainWindowLogic:
             self.display_available_records()
             return
 
-        selected_record_file_name = selected_record.text()
-        plot_window = PlotLogic(self.current_folder)
-        plot_window.run(selected_record_file_name)
+        selected_record_file_name = selected_record.text() + ".json"
+        plot_window = PlotLogic(self.current_folder, selected_record_file_name)
+        plot_window.run()
 
     def directory_up(self):
         current_directory_levels = self.current_folder.rstrip("/").split("/")
@@ -828,18 +824,23 @@ class MainWindowLogic:
         selected_record_name = selected_record.text()
 
         if os.path.isdir(self.current_folder + selected_record_name + "/"):
+            messagebox = QMessageBox(QMessageBox.Critical,
+                                     "Deletion error",
+                                     "Cannot delete a folder!",
+                                     QMessageBox.Ok)
+            messagebox.exec()
             return
 
         messagebox = QMessageBox(QMessageBox.Question,
                                  "Confirm delete",
-                                 "Are you sure?",
+                                 f"Are you sure you want to delete \"{selected_record_name}.json\"?",
                                  QMessageBox.Yes | QMessageBox.No)
         response = messagebox.exec()
 
         if response == QMessageBox.No:
             return
 
-        os.remove(str(self.current_folder + selected_record_name + ".json"))
+        send2trash(str(self.current_folder + selected_record_name + ".json"))
         self.display_available_records()
         self.ui.RecordsList.setCurrentRow(0)
 

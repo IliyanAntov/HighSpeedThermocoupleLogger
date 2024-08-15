@@ -1,9 +1,8 @@
 import copy
-import json
 import math
 import multiprocessing
-import os
 import sys
+from datetime import datetime
 from functools import partial
 from multiprocessing import Pool
 
@@ -35,22 +34,23 @@ plot_name = ""
 
 
 class PlotLogic:
-    def __init__(self, current_folder):
+    def __init__(self, current_folder, record_file_name):
         # NOTE: Debugging code
         # self.app = QtWidgets.QApplication(sys.argv)
         self.ui = Ui_Form()
         self.form = QtWidgets.QWidget()
-        self.record_file_name = None
+        self.record_file_name = record_file_name
         self.current_folder = current_folder
         self.record = Record()
         self.record_saved = Record()
         self.available_channel_records = []
 
+        self.generator_log = {}
+
         self.changes_made = False
 
         self.fig = None
-        self.ax1 = None
-        self.ax2 = None
+        self.main_axis = None
         self.cursor_line = None
         self.cursor_text = None
         self.drag_event = None
@@ -61,16 +61,15 @@ class PlotLogic:
                             'size': 10,
                             }
 
-    def run(self, record_file_name):
+    def run(self):
         self.ui.setupUi(self.form)
 
-        self.record_file_name = record_file_name
         global plot_name
         plot_name = self.record_file_name
         self.form.setWindowTitle(self.record_file_name.replace(".json", ""))
         self.load_data()
 
-        self.update_enabled_widgets()
+        self.update_ui_elements()
         self.assign_button_functions()
         self.set_field_limit_values()
 
@@ -78,21 +77,34 @@ class PlotLogic:
         # NOTE: Debugging code
         # sys.exit(self.app.exec_())
 
-    def update_enabled_widgets(self):
-        for widget_index in range(self.ui.ChannelParametersLayout.count()):
-            widget = self.ui.ChannelParametersLayout.itemAt(widget_index).widget()
-            if widget is None:
-                continue
-            elif isinstance(widget, QLabel):
-                widget.setEnabled(True)
-            else:
-                widget.setEnabled(False)
+    def update_ui_elements(self):
+        # for widget_index in range(self.ui.ChannelParametersLayout.count()):
+        #     widget = self.ui.ChannelParametersLayout.itemAt(widget_index).widget()
+        #     if widget is None:
+        #         continue
+        #     elif isinstance(widget, QLabel):
+        #         widget.setEnabled(True)
+        #     else:
+        #         widget.setEnabled(False)
 
         self.ui.ViewPlotButton.setEnabled(True)
         if self.changes_made:
             self.ui.SaveChangesButton.setEnabled(True)
-        self.ui.RecordLengthValue.setValue(self.record.length_ms)
-        self.ui.RecordIntervalValue.setValue(self.record.interval_us)
+        else:
+            self.ui.SaveChangesButton.setEnabled(False)
+
+        self.ui.RecordLengthValue.setText(str(self.record.length_ms) + " ms")
+        self.ui.RecordIntervalValue.setText(str(self.record.interval_us) + " μs")
+        try:
+            log_datetime_formatted = datetime.strptime(self.record.log_date_time, "%Y/%m/%d %H:%M:%S")
+            self.ui.LogDateTime.setText(log_datetime_formatted.strftime("%d %b %Y, %H:%M:%S"))
+        except AttributeError:
+            pass
+        try:
+            if self.record.generator_command is not None:
+                self.ui.GeneratorCommand.setText(self.record.generator_command)
+        except AttributeError:
+            pass
 
         for i in range(self.record.num_of_channels):
             channel_enable_checkbox_widget = self.form.findChild(QCheckBox, f"ChannelEnabled_{i + 1}")
@@ -106,6 +118,10 @@ class PlotLogic:
                 continue
 
             self.update_channel_widgets_enable_status(i + 1)
+
+        for key, value in self.generator_log.items():
+            parameter_enable_widget = self.form.findChild(QCheckBox, f"{key}Enabled")
+            parameter_enable_widget.setEnabled(True)
 
     def change_apply_cancel_buttons_enable_status(self, state):
         self.ui.ApplyButton.setEnabled(state)
@@ -272,6 +288,14 @@ class PlotLogic:
 
         self.record_saved = copy.deepcopy(self.record)
 
+        try:
+            self.generator_log = self.record.generator_raw_data
+        except AttributeError:
+            try:
+                self.generator_log = {"Z": self.record.impedance_raw_data}
+            except AttributeError:
+                pass
+
     def display_saved_parameter_values(self, channel_index):
         channel_enabled_widget = self.form.findChild(QCheckBox, f"ChannelEnabled_{channel_index+1}")
         channel_enabled_widget.setChecked(self.record.channels[channel_index].available)
@@ -313,20 +337,20 @@ class PlotLogic:
         for i in range(self.record.num_of_channels):
             if self.record.channels[i].available:
                 self.display_saved_parameter_values(i)
-        self.update_enabled_widgets()
+        self.update_ui_elements()
 
     def restore_saved_parameters(self):
         self.record = copy.deepcopy(self.record_saved)
         for i in range(self.record.num_of_channels):
             if self.record.channels[i].available:
                 self.display_saved_parameter_values(i)
-        self.update_enabled_widgets()
+        self.update_ui_elements()
 
     def save_changes(self):
         jsonpickle.set_encoder_options('json', indent=4)
         output_json = jsonpickle.encode(self.record)
 
-        with open(str(Parameters.record_folder_dir + self.record_file_name), "w") as output_file:
+        with open(str(self.current_folder + self.record_file_name), "w") as output_file:
             output_file.writelines(output_json)
 
         self.load_data()
@@ -338,10 +362,6 @@ class PlotLogic:
         global plot_data
         plot_data = {}
 
-        impedance_values = None
-        y_data_values = None
-        y_prediction_values = None
-
         enabled_channels = list(x.available for x in self.record.channels).count(True)
         if not enabled_channels:
             messagebox = QMessageBox(QMessageBox.Critical,
@@ -352,43 +372,65 @@ class PlotLogic:
             self.form.setEnabled(True)
             return
 
-        self.fig, self.ax1 = plt.subplots()
-        self.ax2 = self.ax1.twinx()
+        self.fig, self.main_axis = plt.subplots()
 
         x_values = np.linspace(0, self.record.length_ms, int(self.record.length_ms/(self.record.interval_us/1000)))
         x_values = np.round(x_values, math.ceil(math.log10(1000 / self.record.interval_us)))
         plot_data["Time[ms]"] = x_values
 
-        # Plotting impedance
-        try:
-            impedance_values = self.record.generator_raw_data["Z"]
-            plot_data.update(self.record.generator_raw_data)
-        except AttributeError:
-            try:
-                impedance_values = self.record.impedance_raw_data
-                plot_data["Z"] = impedance_values
-            except AttributeError:
-                impedance_values = None
-        except KeyError:
-            impedance_values = None
+        # Plotting generator measurements
+        current_spine_offs = 0
+        colors = {
+            "Z": "Black",
+            "U": "Olive",
+            "I": "RoyalBlue",
+            "P": "Coral",
+            "Phase": "Fuchsia"
+        }
+        secondary_plot_drawn = False
+        secondary_axis = None
+        for parameter_name, values in self.generator_log.items():
+            parameter_enable_widget = self.form.findChild(QCheckBox, f"{parameter_name}Enabled")
+            if not parameter_enable_widget.isChecked():
+                continue
 
-        if impedance_values is not None:
-            x_values_imp = list(range(self.record.generator_log_start_time_ms,
-                                      self.record.generator_log_start_time_ms + len(impedance_values),
+            secondary_axis = self.main_axis.twinx()
+            secondary_axis.spines[["left", "top", "bottom"]].set_visible(False)
+
+            x_values_gen = list(range(self.record.generator_log_start_time_ms,
+                                      self.record.generator_log_start_time_ms + len(values),
                                       self.record.generator_log_interval_ms))
-            plt.axvspan(self.record.generator_log_start_time_ms,
-                        self.record.generator_log_start_time_ms + len(impedance_values) - 1,
-                        facecolor='0.2',
-                        alpha=0.15)
 
-            self.ax2.plot(x_values_imp, impedance_values, color="Black", label="Impedance")
+            secondary_axis.plot(x_values_gen, values, color=colors[parameter_name], label=Parameters.plot_label_names[parameter_name])
 
-            self.ax2.set_xlabel("Time [ms]")
-            self.ax2.set_ylabel("Impedance [Ω]")
-            impedance_axis_max = math.ceil(max(impedance_values)/1000.0) * 1000
-            self.ax2.set_ylim([0, impedance_axis_max])
+            secondary_axis.spines["right"].set_edgecolor(colors[parameter_name])
+
+            secondary_axis.tick_params(axis="y", colors=colors[parameter_name], labelsize=10)
+            secondary_axis.yaxis.label.set_color(colors[parameter_name])
+
             ticker = matplotlib.ticker.EngFormatter(unit='', sep="")
-            self.ax2.yaxis.set_major_formatter(ticker)
+            secondary_axis.yaxis.set_major_formatter(ticker)
+
+            secondary_axis.spines.right.set_position(("outward", current_spine_offs))
+
+            labels = secondary_axis.get_yticklabels()
+            labels_str = [str(x.get_text()) for x in labels]
+            longest_label = max(labels_str, key=len)
+            longest_label_index = labels_str.index(longest_label)
+
+            spine_tick_bbox = secondary_axis.spines['right'].get_window_extent()
+            spine_label_bbox = labels[longest_label_index].get_window_extent()
+            label_pad_calc = int((spine_label_bbox.x1 - spine_label_bbox.x0) / 2)
+            secondary_axis.set_ylabel(Parameters.excel_column_names[parameter_name], rotation="horizontal", y=1.035, labelpad=-label_pad_calc)
+
+            current_spine_offs += int(spine_label_bbox.x1 - spine_tick_bbox.x0)
+
+            if not secondary_plot_drawn:
+                secondary_plot_drawn = True
+                plt.axvspan(self.record.generator_log_start_time_ms,
+                            self.record.generator_log_start_time_ms + len(values) - 1,
+                            facecolor='0.2',
+                            alpha=0.15)
 
         # Plotting temperature
         channel_colors = ["red", "blue", "green", "orange"]
@@ -413,7 +455,7 @@ class PlotLogic:
                 y_max = max(y_data_values)
 
             plot_data["Treal[°C]"] = y_data_values
-            self.ax1.plot(x_values, y_data_values, color=channel_colors[i], label=data_label)
+            self.main_axis.plot(x_values, y_data_values, color=channel_colors[i], label=data_label)
 
             # Prediction plot
             if not self.record.channels[i].temperature_prediction_enabled:
@@ -435,13 +477,17 @@ class PlotLogic:
 
             x_values_prediction = x_values[:len(x_values) - self.record.channels[i].prediction_queue_length]
             plot_data["Tpred[°C]"] = y_prediction_values
-            self.ax1.plot(x_values_prediction, y_prediction_values, color=channel_colors[i], linestyle="dashed", label=prediction_label)
+            self.main_axis.plot(x_values_prediction, y_prediction_values, color=channel_colors[i], linestyle="dashed", label=prediction_label)
 
         plt.title(self.record_file_name.replace(".json", ""), pad=15)
-        self.ax1.set_xlabel("Time [ms]")
-        self.ax1.set_ylabel("Temperature [°C]")
-        plt.figlegend()
-        self.ax1.grid()
+        self.main_axis.set_xlabel("Time [ms]")
+        self.main_axis.set_ylabel("Temperature [°C]")
+        self.main_axis.spines["left"].set_edgecolor(channel_colors[0])
+        self.main_axis.tick_params(axis="y", colors=channel_colors[0], labelsize=10)
+        self.main_axis.yaxis.label.set_color(channel_colors[0])
+
+        plt.figlegend(loc="upper left")
+        self.main_axis.grid()
 
         # Save to Excel button
         tm = self.fig.canvas.manager.toolmanager
@@ -452,6 +498,9 @@ class PlotLogic:
         plt.show()
 
         # Cursors
+        if self.generator_log is not None:
+            plot_data.update(self.generator_log)
+
         self.fig.canvas.draw()
         self.fig.my_bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
 
@@ -459,26 +508,31 @@ class PlotLogic:
         self.cursor_text = plt.text(0, 0, "", fontdict=self.cursor_font)
         self.cursor_text.set_bbox(dict(facecolor="yellow", alpha=1))
 
-        y_axis_names_values = {"     Z[Ω]": impedance_values,
-                               "Treal[°C]": y_data_values,
-                               "Tpred[°C]": y_prediction_values}
-        self.fig.canvas.mpl_connect("button_press_event", lambda event: self.drag_cursor(event, y_axis_names_values))
+        enabled_gen_traces = {}
+        for key, value in self.generator_log.items():
+            parameter_enable_widget = self.form.findChild(QCheckBox, f"{key}Enabled")
+            enabled_gen_traces[key] = parameter_enable_widget.isChecked()
+
+        self.fig.canvas.mpl_connect("button_press_event", lambda event: self.drag_cursor(event, enabled_gen_traces))
         self.fig.canvas.mpl_connect("button_release_event", self.release_cursor)
         self.fig.canvas.mpl_connect("resize_event", self.window_resize)
-        self.ax2.callbacks.connect("ylim_changed", self.window_resize)
+        if secondary_plot_drawn:
+            secondary_axis.callbacks.connect("ylim_changed", self.window_resize)
+        else:
+            self.main_axis.callbacks.connect("ylim_changed", self.window_resize)
 
-    def drag_cursor(self, event, y_axis_names_values):
+    def drag_cursor(self, event, enabled_gen_traces):
         if event.button == 1:
             self.hide_cursor()
             return
-        self.drag_event = self.fig.canvas.mpl_connect("motion_notify_event", lambda evt: self.show_cursor(evt, y_axis_names_values))
+        self.drag_event = self.fig.canvas.mpl_connect("motion_notify_event", lambda evt: self.show_cursor(evt, enabled_gen_traces))
         return
 
     def release_cursor(self, event):
         self.fig.canvas.mpl_disconnect(self.drag_event)
         return
 
-    def show_cursor(self, event, y_axis_names_values):
+    def show_cursor(self, event, enabled_gen_traces):
         time_value = event.xdata
 
         if time_value is None:
@@ -487,32 +541,32 @@ class PlotLogic:
         round_base = self.record.interval_us / 1000.0
         round_precision = math.ceil(math.log10(1000 / self.record.interval_us))
 
-        time_value_rounded = round(round_base * round(time_value / round_base), round_precision)
+        temperature_time_rounded = round(round_base * round(time_value / round_base), round_precision)
+        generator_time = -1
+        if self.generator_log:
+            generator_time = time_value / self.record.generator_log_interval_ms - self.record.generator_log_start_time_ms
 
-        # time_value_rounded = round(time_value, math.ceil(math.log10(1000 / self.record.interval_us)))
+        self.cursor_line.set_xdata(temperature_time_rounded)
 
-        self.cursor_line.set_xdata(time_value_rounded)
-
-        annotation_text = f" Time[ms]: {time_value_rounded:.2f}\n"
-        for name, values in y_axis_names_values.items():
-            if "Ω" in name and values is not None:
-                impedance_index = round(time_value / self.record.generator_log_interval_ms - self.record.generator_log_start_time_ms)
-                if values is not None and len(values) > impedance_index > 0:
-                    annotation_text += f"{name}: {values[impedance_index]}\n"
+        annotation_text = ""
+        global plot_data
+        for name, values in plot_data.items():
+            if "[°C]" not in name and "[ms]" not in name:
+                if (len(values) - 1) > generator_time >= 0 and enabled_gen_traces[name]:
+                    annotation_text += f"{Parameters.excel_column_names[name]}: {values[round(generator_time)]:.{Parameters.log_meaningful_float_characters[name]}f}\n"
             else:
                 temperature_index = round(time_value / (self.record.interval_us / 1000.0))
                 if values is not None and len(values) > temperature_index > 0:
                     annotation_text += f"{name}: {values[temperature_index]:.2f}\n"
 
         annotation_text = annotation_text.strip("\n")
-        self.cursor_text.set_position((event.xdata + (self.ax1.get_xlim()[1] - self.ax1.get_xlim()[0])*0.035, event.ydata))
+        self.cursor_text.set_position((event.xdata + (self.main_axis.get_xlim()[1] - self.main_axis.get_xlim()[0]) * 0.035, event.ydata))
         self.cursor_text.set_text(annotation_text)
 
         self.fig.canvas.restore_region(self.fig.my_bg)
         self.fig.draw_artist(self.cursor_line)
         self.fig.draw_artist(self.cursor_text)
         self.fig.canvas.blit()
-        # print(annotation_text)
 
     def hide_cursor(self):
         self.fig.canvas.restore_region(self.fig.my_bg)
@@ -524,6 +578,7 @@ class PlotLogic:
         cursor_text = self.cursor_text.get_text()
         self.cursor_line.remove()
         self.cursor_text.remove()
+        self.fig.tight_layout()
         self.fig.canvas.draw()
         self.fig.my_bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
 
@@ -643,10 +698,10 @@ class SaveToExcelButton(ToolBase):
                 current_column = df.pop("I")
                 power_column = df.pop("P")
                 phase_column = df.pop("Phase")
-                df["U[V]"] = voltage_column
-                df["I[A]"] = current_column
-                df["P[W]"] = power_column
-                df["Phase[°]"] = phase_column
+                df[f"{Parameters.excel_column_names['U']}"] = voltage_column
+                df[f"{Parameters.excel_column_names['I']}"] = current_column
+                df[f"{Parameters.excel_column_names['P']}"] = power_column
+                df[f"{Parameters.excel_column_names['Phase']}"] = phase_column
 
         try:
             if "csv" in file_name:

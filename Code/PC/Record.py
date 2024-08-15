@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from PC.Channel import Channel
 from PC.Parameters import Parameters
 
@@ -6,6 +8,8 @@ class Record:
     def __init__(self, number_of_channels=1):
         self.length_ms = 100
         self.interval_us = 10
+        self.log_date_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+        self.generator_command = None
         self.cold_junction_temperature = 0
         self.analog_reference_voltage = 0
         self.applied_offset_voltage = 0
