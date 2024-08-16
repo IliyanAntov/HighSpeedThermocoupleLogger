@@ -18,7 +18,7 @@ from PC.Record import Record
 from PC.Parameters import Parameters
 from PlotWindowLogic import PlotLogic
 
-from PyQt5 import QtWidgets, QtGui
+from PyQt5 import QtWidgets, QtGui, QtTest
 import sys
 
 
@@ -54,6 +54,7 @@ class MainWindowLogic:
 
         self.ui.CurrentDirectoryLine.setText(self.current_folder)
         self.ui.DirectoryUpButton.setIcon(QIcon("./UI/folder_up.png"))
+        self.ui.NewDirectoryButton.setIcon(QIcon("./UI/new_folder.png"))
         self.ui.RecordLengthValue.setValue(self.record.length_ms)
         self.ui.RecordIntervalValue.setValue(self.record.interval_us)
 
@@ -67,7 +68,7 @@ class MainWindowLogic:
         # Logger UI
         self.update_enabled_widgets()
         self.assign_button_functions()
-        self.display_available_records()
+        self.refresh_record_explorer()
 
         sys.exit(self.app.exec_())
 
@@ -96,6 +97,7 @@ class MainWindowLogic:
 
     def update_connection_widgets_enable_status(self, status):
         self.ui.MeasureButton.setEnabled(status)
+        self.ui.BurstMeasureButton.setEnabled(status)
 
         meas_settings_widgets = []
         for widget_index in range(self.ui.MeasSettingsLayout.count()):
@@ -245,6 +247,7 @@ class MainWindowLogic:
     def assign_button_functions(self):
         self.ui.ConnectionButton.clicked.connect(self.vcp_connection_change)
         self.ui.MeasureButton.clicked.connect(self.measure)
+        self.ui.BurstMeasureButton.clicked.connect(self.burst_measure)
 
         self.ui.ChannelEnabled_1.clicked.connect(lambda: self.toggle_channel(1))
         self.ui.ChannelEnabled_2.clicked.connect(lambda: self.toggle_channel(2))
@@ -301,6 +304,7 @@ class MainWindowLogic:
 
         self.ui.RecordsList.itemDoubleClicked.connect(self.view_selected_record)
         self.ui.DirectoryUpButton.clicked.connect(self.directory_up)
+        self.ui.NewDirectoryButton.clicked.connect(self.new_directory)
 
         self.ui.ViewRecordButton.clicked.connect(self.view_selected_record)
         self.ui.RenameRecordButton.clicked.connect(self.rename_selected_record)
@@ -375,6 +379,7 @@ class MainWindowLogic:
             self.disconnect_gen()
             self.connection_established_gen = False
             self.ui.GeneratorConnectionButton.setText("Connect")
+            self.set_available_comports_gen()
         else:
             self.connection_established_gen = self.connect_gen()
             if not self.connection_established_gen:
@@ -429,25 +434,28 @@ class MainWindowLogic:
 
     def read_data_gen(self):
         while self.read_thread_active:
-            if self.serial_gen.inWaiting():
-                data_line = self.serial_gen.read_until(b"\r").decode().strip()
-                if data_line == Parameters.therapy_parameters_first_line and self.save_generator_log:
-                    log = self.serial_gen.read_until(Parameters.therapy_parameters_last_line.encode()).decode()
-                    log_split = log.split("\r")
-                    self.log_parameter_names = log_split[0]
-                    self.log_data = log_split[1:-1]
-                    self.gen_log_received = True
-                    continue
+            try:
+                if self.serial_gen.inWaiting():
+                    data_line = self.serial_gen.read_until(b"\r").decode().strip()
+                    if data_line == Parameters.therapy_parameters_first_line and self.save_generator_log:
+                        log = self.serial_gen.read_until(Parameters.therapy_parameters_last_line.encode()).decode()
+                        log_split = log.split("\r")
+                        self.log_parameter_names = log_split[0]
+                        self.log_data = log_split[1:-1]
+                        self.gen_log_received = True
+                        continue
 
-                item = QListWidgetItem(data_line)
-                if data_line == self.ui.GeneratorCommand.text():
-                    item.setBackground(QColor("#b9c9fa"))
-                elif data_line == "generator>":
-                    # item = QListWidgetItem("END")
-                    item.setBackground(QColor("#dbdbdb"))
+                    item = QListWidgetItem(data_line)
+                    if data_line == self.ui.GeneratorCommand.text():
+                        item.setBackground(QColor("#b9c9fa"))
+                    elif data_line == "generator>":
+                        # item = QListWidgetItem("END")
+                        item.setBackground(QColor("#dbdbdb"))
 
-                if data_line != "":
-                    self.ui.GeneratorOutputList.addItem(item)
+                    if data_line != "":
+                        self.ui.GeneratorOutputList.addItem(item)
+            except SerialException:
+                self.connection_change_gen()
 
     def disconnect_gen(self):
         self.read_thread_active = False
@@ -482,27 +490,21 @@ class MainWindowLogic:
             self.ui.MeasurementProgressBar.hide()
             self.ui.MeasurementProgressText.hide()
 
-    def measure(self):
-        enabled_channels = list(x.available for x in self.record.channels).count(True)
-        if not enabled_channels:
-            messagebox = QMessageBox(QMessageBox.Critical,
-                                     "Measurement error",
-                                     "Please enable at least one channel",
-                                     QMessageBox.Ok)
-            messagebox.exec()
-            return
+    def measure(self, left_of_burst=0):
+        self.check_channels_enabled()
 
         number_of_steps = 8
-        self.ui.MeasurementProgressText.setText("Preparing...")
+        left_of_burst_str = (' (' + str(left_of_burst) + ' measurement(s) left)') if left_of_burst > 0 else ''
+        self.ui.MeasurementProgressText.setText(f"Preparing...{left_of_burst_str}")
         self.ui.MeasurementProgressBar.setRange(1, number_of_steps)
 
         self.measurement_ui_enabled(True)
 
-        self.ui.MeasurementProgressText.setText("Measuring")
+        self.ui.MeasurementProgressText.setText(f"Measuring{left_of_burst_str}")
         self.ui.MeasurementProgressBar.setValue(1)
-        self.ui.MeasurementProgressText.setText("Sending setup to MCU...")
+        self.ui.MeasurementProgressText.setText(f"Sending setup to MCU...{left_of_burst_str}")
         self.measurement_send_setup()
-        self.ui.MeasurementProgressText.setText("Receiving parameters from MCU...")
+        self.ui.MeasurementProgressText.setText(f"Receiving parameters from MCU...{left_of_burst_str}")
         self.ui.MeasurementProgressBar.setValue(2)
         if not self.measurement_receive_parameters():
             print("Error")
@@ -511,32 +513,55 @@ class MainWindowLogic:
             return
 
         self.waiting_for_trigger = True
-        self.ui.MeasurementProgressText.setText("Waiting for trigger signal...")
+        self.ui.MeasurementProgressText.setText(f"Waiting for trigger signal...{left_of_burst_str}")
         self.ui.MeasurementProgressBar.setValue(3)
         while not self.serial.inWaiting():
             QApplication.processEvents()
         self.waiting_for_trigger = False
 
         self.receiving_temp_data = True
-        self.ui.MeasurementProgressText.setText("Receiving data from MCU...")
+        self.ui.MeasurementProgressText.setText(f"Receiving data from MCU...{left_of_burst_str}")
         self.ui.MeasurementProgressBar.setValue(4)
         self.measurement_receive_data()
         self.receiving_temp_data = False
         if self.save_generator_log:
-            self.ui.MeasurementProgressText.setText("Reading impedance data from generator...")
+            self.ui.MeasurementProgressText.setText(f"Reading impedance data from generator...{left_of_burst_str}")
             self.ui.MeasurementProgressBar.setValue(5)
             self.read_impedance_data()
             self.save_generator_log = False
-        self.ui.MeasurementProgressText.setText("Receiving measurement report from MCU...")
+        self.ui.MeasurementProgressText.setText(f"Receiving measurement report from MCU...{left_of_burst_str}")
         self.ui.MeasurementProgressBar.setValue(6)
         self.measurement_receive_report()
-        self.ui.MeasurementProgressText.setText("Saving record...")
+        self.ui.MeasurementProgressText.setText(f"Saving record...{left_of_burst_str}")
         self.ui.MeasurementProgressBar.setValue(7)
         self.measurement_save_record()
-        self.ui.MeasurementProgressText.setText("Done")
+        self.ui.MeasurementProgressText.setText(f"Done{left_of_burst_str}")
         self.ui.MeasurementProgressBar.setValue(8)
         self.measurement_ui_enabled(False)
         return
+
+    def burst_measure(self):
+        self.check_channels_enabled()
+
+        number_of_measurements, ok = QtWidgets.QInputDialog.getInt(self.ui.BurstMeasureButton,
+                                                                   "Burst measurement",
+                                                                   "Number of measurements:",
+                                                                   QLineEdit.Normal)
+        if not (ok and number_of_measurements):
+            return
+
+        for i in range(number_of_measurements):
+            self.measure(left_of_burst=(number_of_measurements-i))
+
+    def check_channels_enabled(self):
+        enabled_channels = list(x.available for x in self.record.channels).count(True)
+        if not enabled_channels:
+            messagebox = QMessageBox(QMessageBox.Critical,
+                                     "Measurement error",
+                                     "Please enable at least one channel",
+                                     QMessageBox.Ok)
+            messagebox.exec()
+            return
 
     def measurement_send_setup(self):
         # Send UI settings to MCU
@@ -725,10 +750,18 @@ class MainWindowLogic:
         jsonpickle.set_encoder_options('json', indent=4)
         output_json = jsonpickle.encode(self.record)
 
+        i = 2
+        if os.path.isfile(str(self.current_folder + record_file_name)):
+            record_file_name += "_1"
+            while os.path.isfile(str(self.current_folder + record_file_name)):
+                record_file_name = record_file_name[:-2]
+                record_file_name += ("_" + str(i))
+                i += 1
+
         with open(str(self.current_folder + record_file_name), "w") as output_file:
             output_file.writelines(output_json)
 
-        self.display_available_records()
+        self.refresh_record_explorer()
 
         # Reset channel data
         for channel in self.record.channels:
@@ -736,7 +769,7 @@ class MainWindowLogic:
 
         self.record.impedance_raw_data = []
 
-    def display_available_records(self):
+    def refresh_record_explorer(self):
         self.ui.CurrentDirectoryLine.setText(self.current_folder)
 
         self.ui.RecordsList.clear()
@@ -781,7 +814,7 @@ class MainWindowLogic:
 
         if os.path.isdir(self.current_folder + selected_record.text()):
             self.current_folder = self.current_folder + selected_record.text() + "/"
-            self.display_available_records()
+            self.refresh_record_explorer()
             return
 
         selected_record_file_name = selected_record.text() + ".json"
@@ -793,7 +826,29 @@ class MainWindowLogic:
         if len(current_directory_levels) > 1:
             self.current_folder = "/".join(current_directory_levels[:-1])
             self.current_folder += "/"
-            self.display_available_records()
+            self.refresh_record_explorer()
+
+    def new_directory(self):
+        folder_name, ok = QtWidgets.QInputDialog.getText(self.ui.RecordsList,
+                                                         "Create folder",
+                                                         "Folder name:",
+                                                         QLineEdit.Normal)
+        if not (ok and folder_name):
+            return
+
+        try:
+            print(self.current_folder + folder_name + "/")
+            os.mkdir(self.current_folder + folder_name + "/")
+        except FileExistsError:
+            messagebox = QMessageBox(QMessageBox.Critical,
+                                     "Folder creation error",
+                                     "Folder already exists!",
+                                     QMessageBox.Ok)
+            messagebox.exec()
+            return
+
+        self.refresh_record_explorer()
+
 
     def rename_selected_record(self):
         selected_record = self.ui.RecordsList.currentItem()
@@ -814,7 +869,7 @@ class MainWindowLogic:
             current_name += ".json"
 
         os.rename(str(self.current_folder + current_name), str(self.current_folder + new_name))
-        self.display_available_records()
+        self.refresh_record_explorer()
 
     def delete_selected_record(self):
         selected_record = self.ui.RecordsList.currentItem()
@@ -823,25 +878,20 @@ class MainWindowLogic:
 
         selected_record_name = selected_record.text()
 
-        if os.path.isdir(self.current_folder + selected_record_name + "/"):
-            messagebox = QMessageBox(QMessageBox.Critical,
-                                     "Deletion error",
-                                     "Cannot delete a folder!",
-                                     QMessageBox.Ok)
-            messagebox.exec()
-            return
+        if not os.path.isdir(self.current_folder + selected_record_name + "/"):
+            selected_record_name += ".json"
 
         messagebox = QMessageBox(QMessageBox.Question,
                                  "Confirm delete",
-                                 f"Are you sure you want to delete \"{selected_record_name}.json\"?",
+                                 f"Are you sure you want to delete \"{selected_record_name}\"?",
                                  QMessageBox.Yes | QMessageBox.No)
         response = messagebox.exec()
 
         if response == QMessageBox.No:
             return
 
-        send2trash(str(self.current_folder + selected_record_name + ".json"))
-        self.display_available_records()
+        send2trash(str(self.current_folder + selected_record_name))
+        self.refresh_record_explorer()
         self.ui.RecordsList.setCurrentRow(0)
 
     def set_field_limit_values(self):

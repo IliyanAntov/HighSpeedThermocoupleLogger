@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1379</width>
-    <height>645</height>
+    <height>666</height>
    </rect>
   </property>
   <property name="font">
@@ -23,7 +23,7 @@
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <layout class="QHBoxLayout" name="horizontalLayout_6">
+  <layout class="QHBoxLayout" name="horizontalLayout_3">
    <item>
     <layout class="QVBoxLayout" name="GeneratorLayout">
      <item>
@@ -63,7 +63,7 @@
       </spacer>
      </item>
      <item>
-      <layout class="QHBoxLayout" name="ConnectMeasureLayout_2">
+      <layout class="QHBoxLayout" name="GenConnectMeasureLayout">
        <item>
         <layout class="QHBoxLayout" name="horizontalLayout_2">
          <item>
@@ -379,9 +379,6 @@
        <property name="alignment">
         <set>Qt::AlignCenter</set>
        </property>
-       <property name="buddy">
-        <cstring>ConnectionButton</cstring>
-       </property>
       </widget>
      </item>
      <item>
@@ -402,20 +399,7 @@
      </item>
      <item>
       <widget class="QFrame" name="ConnectMeasureButtonsFrame">
-       <layout class="QHBoxLayout" name="ConnectMeasureLayout">
-        <item>
-         <spacer name="horizontalSpacer_2">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>40</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
+       <layout class="QHBoxLayout" name="TempConnectMeasureLayout">
         <item>
          <widget class="QPushButton" name="ConnectionButton">
           <property name="sizePolicy">
@@ -426,7 +410,7 @@
           </property>
           <property name="minimumSize">
            <size>
-            <width>150</width>
+            <width>100</width>
             <height>50</height>
            </size>
           </property>
@@ -445,22 +429,6 @@
          </widget>
         </item>
         <item>
-         <spacer name="horizontalSpacer">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeType">
-           <enum>QSizePolicy::Expanding</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>50</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-        <item>
          <widget class="QPushButton" name="MeasureButton">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -470,7 +438,7 @@
           </property>
           <property name="minimumSize">
            <size>
-            <width>150</width>
+            <width>100</width>
             <height>50</height>
            </size>
           </property>
@@ -489,17 +457,32 @@
          </widget>
         </item>
         <item>
-         <spacer name="horizontalSpacer_3">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
+         <widget class="QPushButton" name="BurstMeasureButton">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
           </property>
-          <property name="sizeHint" stdset="0">
+          <property name="minimumSize">
            <size>
-            <width>40</width>
-            <height>20</height>
+            <width>100</width>
+            <height>50</height>
            </size>
           </property>
-         </spacer>
+          <property name="font">
+           <font>
+            <family>Calibri</family>
+            <pointsize>14</pointsize>
+            <weight>50</weight>
+            <italic>false</italic>
+            <bold>false</bold>
+           </font>
+          </property>
+          <property name="text">
+           <string>Burst Measure</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -680,6 +663,18 @@
          <property name="enabled">
           <bool>true</bool>
          </property>
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>25</height>
+          </size>
+         </property>
          <property name="styleSheet">
           <string notr="true">background-color: rgb(240, 240, 240);</string>
          </property>
@@ -689,7 +684,26 @@
         </widget>
        </item>
        <item>
+        <widget class="QPushButton" name="NewDirectoryButton">
+         <property name="minimumSize">
+          <size>
+           <width>30</width>
+           <height>25</height>
+          </size>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QPushButton" name="DirectoryUpButton">
+         <property name="minimumSize">
+          <size>
+           <width>30</width>
+           <height>25</height>
+          </size>
+         </property>
          <property name="text">
           <string/>
          </property>
@@ -1625,32 +1639,6 @@
        </item>
       </widget>
      </item>
-     <item row="0" column="1">
-      <spacer name="verticalSpacer_3">
-       <property name="orientation">
-        <enum>Qt::Vertical</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>20</width>
-         <height>40</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item row="17" column="3">
-      <spacer name="verticalSpacer_4">
-       <property name="orientation">
-        <enum>Qt::Vertical</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>20</width>
-         <height>40</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
      <item row="7" column="1">
       <widget class="QLabel" name="label_14">
        <property name="font">
@@ -2164,6 +2152,32 @@
        </property>
       </widget>
      </item>
+     <item row="0" column="1" colspan="5">
+      <spacer name="verticalSpacer_3">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="17" column="1" colspan="5">
+      <spacer name="verticalSpacer_4">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
     </layout>
    </item>
   </layout>
@@ -2175,8 +2189,6 @@
   <tabstop>GeneratorSendCommandButton</tabstop>
   <tabstop>GeneratorOutputList</tabstop>
   <tabstop>GeneratorOutputClearButton</tabstop>
-  <tabstop>ConnectionButton</tabstop>
-  <tabstop>MeasureButton</tabstop>
   <tabstop>RecordLengthValue</tabstop>
   <tabstop>RecordLengthMinButton</tabstop>
   <tabstop>RecordLengthMaxButton</tabstop>
