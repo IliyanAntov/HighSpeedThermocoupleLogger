@@ -13,12 +13,12 @@ from PyQt5.QtWidgets import QApplication
 from send2trash import send2trash
 from serial import SerialTimeoutException, SerialException
 
-from PC.MainWindowUI import Ui_Form
-from PC.Record import Record
-from PC.Parameters import Parameters
+from MainWindowUI import Ui_Form
+from MeasurementData.LogData import Record
+import MeasurementData.Parameters as Parameters
 from PlotWindowLogic import PlotLogic
 
-from PyQt5 import QtWidgets, QtGui, QtTest
+from PyQt5 import QtWidgets, QtGui
 import sys
 
 
@@ -53,8 +53,8 @@ class MainWindowLogic:
         self.form.setWindowTitle("High Speed Thermocouple Logger")
 
         self.ui.CurrentDirectoryLine.setText(self.current_folder)
-        self.ui.DirectoryUpButton.setIcon(QIcon("./UI/folder_up.png"))
-        self.ui.NewDirectoryButton.setIcon(QIcon("./UI/new_folder.png"))
+        self.ui.DirectoryUpButton.setIcon(QIcon("UI/folder_up.png"))
+        self.ui.NewDirectoryButton.setIcon(QIcon("UI/new_folder.png"))
         self.ui.RecordLengthValue.setValue(self.record.length_ms)
         self.ui.RecordIntervalValue.setValue(self.record.interval_us)
 
@@ -776,7 +776,7 @@ class MainWindowLogic:
         self.ui.RecordsList.setItemAlignment(Qt.AlignLeft)
 
         root, dir_list, record_list = next(os.walk(self.current_folder))
-        folder_icon = QIcon("./UI/folder.png")
+        folder_icon = QIcon("UI/folder.png")
         temp_item = QListWidgetItem("_-_temp_-_")
         self.ui.RecordsList.addItem(temp_item)
 

@@ -17,8 +17,8 @@ from PyQt5.QtCore import QRegularExpression
 from PyQt5.QtWidgets import *
 from scipy.optimize import curve_fit
 
-from PC.Record import Record
-from PC.Parameters import Parameters
+from MeasurementData.LogData import Record
+import MeasurementData.Parameters as Parameters
 from PlotWindowUI import Ui_Form
 from PyQt5 import QtWidgets
 import matplotlib.pyplot as plt
@@ -374,10 +374,6 @@ class PlotLogic:
 
         self.fig, self.main_axis = plt.subplots()
 
-        x_values = np.linspace(0, self.record.length_ms, int(self.record.length_ms/(self.record.interval_us/1000)))
-        x_values = np.round(x_values, math.ceil(math.log10(1000 / self.record.interval_us)))
-        plot_data["Time[ms]"] = x_values
-
         # Plotting generator measurements
         current_spine_offs = 0
         colors = {
@@ -434,6 +430,9 @@ class PlotLogic:
 
         # Plotting temperature
         channel_colors = ["red", "blue", "green", "orange"]
+        x_values = np.linspace(0, self.record.length_ms, int(self.record.length_ms/(self.record.interval_us/1000)))
+        x_values = np.round(x_values, math.ceil(math.log10(1000 / self.record.interval_us)))
+        plot_data["Time[ms]"] = x_values
 
         y_max = None
         for i in range(self.record.num_of_channels):
