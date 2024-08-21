@@ -4,18 +4,22 @@ import statistics
 import warnings
 
 import numpy as np
-from matplotlib import pyplot as plt
 import plotly.graph_objs as go
-from scipy.interpolate import InterpolatedUnivariateSpline
 
 from PC.MeasurementData.LogData import Record, Channel
 import PC.MeasurementData.Parameters as Parameters
 import jsonpickle as jsonpickle
 
-show_all_traces = False
-log_folders = ["../logs/test_logs"]
-logger_temp_time_offset = 7
+show_all_traces = True
+use_pred_data = False
+# log_folders = ["../logs/test_logs"]
+log_folders = ["../logs/04_Second tests with impedance data/Proper"]
+tpred_log_folder = "./Tpred_logs"
+logger_temp_time_offset = 8
 end_values_to_skip = 5
+
+x_bounds = [0, 4000]
+y_bounds = [0, 120]
 
 ez_interp_bounds = {
     "min": 0,
@@ -29,18 +33,30 @@ temp_interp_bounds = {
     "n": 1000
 }
 
-fig = go.Figure()
+fig = go.Figure(layout_yaxis_range=y_bounds, layout_xaxis_range=x_bounds)
 
-interp_plot_list = []
-for log_folder in log_folders:
-    log_names = os.listdir(log_folder)
-    for log_name in log_names:
-        with open(log_folder + "/" + log_name) as log_file:
-            file_raw = log_file.read()
-            file_raw = file_raw.replace("MeasurementData.", "PC.MeasurementData.")
-            record = jsonpickle.decode(file_raw)
 
-            z_values = record.generator_raw_data["Z"]
+if __name__ == '__main__':
+    temp_values_interp_all = []
+    for log_folder in log_folders:
+        log_names = os.listdir(log_folder)
+        tpred_log_names = os.listdir(tpred_log_folder)
+        for log_name in log_names:
+            if use_pred_data:
+                selected_log_folder = tpred_log_folder
+            else:
+                selected_log_folder = log_folder
+
+            with open(selected_log_folder + "/" + log_name) as log_file:
+                file_raw = log_file.read()
+                if not use_pred_data:
+                    file_raw = file_raw.replace("MeasurementData.", "PC.MeasurementData.")
+                record = jsonpickle.decode(file_raw)
+
+            try:
+                z_values = record.generator_raw_data["Z"]
+            except (AttributeError, KeyError):
+                continue
             p_values = record.generator_raw_data["P"]
             e_values = []
             ez_values = []
@@ -67,31 +83,18 @@ for log_folder in log_folders:
             temp_values_gen = []
             current_average_list = []
             temp_index = 0
-            for gen_time_value in time_values_gen:
-                while time_values_temp[temp_index] < gen_time_value + logger_temp_time_offset:
+            for time_value_gen in time_values_gen:
+                while time_values_temp[temp_index] < time_value_gen + logger_temp_time_offset:
                     temp_index += 1
-                while time_values_temp[temp_index] < (gen_time_value + logger_temp_time_offset + 1):
+                while time_values_temp[temp_index] < (time_value_gen + logger_temp_time_offset + 1):
                     current_average_list.append(temp_values[temp_index])
                     temp_index += 1
 
                 temp_values_gen.append(statistics.fmean(current_average_list))
                 current_average_list = []
 
-            # NOTE: E*Z = f(Temp)
-            # plt.plot(temp_values_gen, ez_values)
-            # values_for_interp = np.linspace(temp_interp_bounds["min"], temp_interp_bounds["max"], temp_interp_bounds["n"])
-            # if end_values_to_skip > 0:
-            #     values_interp = np.interp(values_for_interp, temp_values_gen[:-end_values_to_skip],
-            #                             ez_values[:-end_values_to_skip], left=np.NaN, right=np.NaN)
-            # else:
-            #     values_interp = np.interp(values_for_interp, temp_values_gen,
-            #                               ez_values, left=np.NaN, right=np.NaN)
-            #
-            # interp_plot_list.append(values_interp)
-
             # NOTE: Temp = f(E*Z)
             if show_all_traces:
-                # plt.plot(ez_values, temp_values_gen)
                 fig.add_trace(go.Scatter(x=ez_values,
                                          y=temp_values_gen,
                                          name=log_name.replace(".json", ""),
@@ -99,79 +102,61 @@ for log_folder in log_folders:
 
             values_for_interp = np.linspace(ez_interp_bounds["min"], ez_interp_bounds["max"], ez_interp_bounds["n"])
             if end_values_to_skip > 0:
-                values_interp = np.interp(values_for_interp,
-                                          ez_values[:-end_values_to_skip],
-                                          temp_values_gen[:-end_values_to_skip],
-                                          left=np.NaN,
-                                          right=np.NaN)
+                temp_values_interp = np.interp(values_for_interp,
+                                               ez_values[:-end_values_to_skip],
+                                               temp_values_gen[:-end_values_to_skip],
+                                               left=np.NaN,
+                                               right=np.NaN)
             else:
-                values_interp = np.interp(values_for_interp,
-                                          ez_values,
-                                          temp_values_gen,
-                                          left=np.NaN,
-                                          right=np.NaN)
+                temp_values_interp = np.interp(values_for_interp,
+                                               ez_values,
+                                               temp_values_gen,
+                                               left=np.NaN,
+                                               right=np.NaN)
 
-            interp_plot_list.append(values_interp)
+            temp_values_interp_all.append(temp_values_interp)
 
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", category=RuntimeWarning)
-    mean_plot = np.nanmean(interp_plot_list, axis=0)
-    confidence_5percent = np.nanpercentile(interp_plot_list, 5, axis=0)
-    confidence_95percent = np.nanpercentile(interp_plot_list, 95, axis=0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        mean_plot = np.nanmean(temp_values_interp_all, axis=0)
+        confidence_5percent = np.nanpercentile(temp_values_interp_all, 5, axis=0)
+        confidence_95percent = np.nanpercentile(temp_values_interp_all, 95, axis=0)
 
-# NOTE: matplotlib version
-# plt.plot(values_for_interp, mean_plot, linestyle="--", linewidth=3, color="red", label="Mean")
-# plt.fill_between(values_for_interp, confidence_5percent, confidence_95percent, alpha=0.5, label='5% and 95% confidence interval')
-#
-# ez_value = 2500
-# temp_low = np.interp(ez_value, values_for_interp, confidence_5percent)
-# temp_high = np.interp(ez_value, values_for_interp, confidence_95percent)
-# temp_mean = np.interp(ez_value, values_for_interp, mean_plot)
-# print(f"Low: {temp_low:.2f}°C")
-# print(f"Mean: {temp_mean:.2f}°C")
-# print(f"High: {temp_high:.2f}°C")
-# print(f"\nInterval size: {temp_high-temp_low:.2f}°C")
-#
-# plt.minorticks_on()
-# plt.grid(visible=True, which="both")
-# plt.legend()
-# plt.show()
-
-# NOTE: pyplot version
-fig.add_trace(go.Scatter(name='Mean',
-                         x=values_for_interp,
-                         y=mean_plot,
-                         mode='lines',
-                         line=dict(color='red', width=5, dash="dash")
-                         )
-              )
-
-fig.add_trace(go.Scatter(name='High',
-                         x=values_for_interp,
-                         y=confidence_95percent,
-                         mode='lines',
-                         marker=dict(color="#444"),
-                         line=dict(width=0),
-                         showlegend=False
-                         )
-              )
-
-fig.add_trace(go.Scatter(name='Low',
-                         x=values_for_interp,
-                         y=confidence_5percent,
-                         marker=dict(color="#444"),
-                         line=dict(width=0),
-                         mode='lines',
-                         fillcolor='rgba(68, 68, 68, 0.3)',
-                         fill='tonexty',
-                         showlegend=False
-                         )
-              )
-
-fig.update_layout(xaxis_title="E*Z",
-                  yaxis_title='Temp[°C]',
-                  title='Temp = f(E*Z)',
-                  hovermode="x"
+    fig.add_trace(go.Scatter(name='Mean',
+                             x=values_for_interp,
+                             y=mean_plot,
+                             mode='lines',
+                             line=dict(color='red', width=5, dash="dash")
+                             )
                   )
 
-fig.show()
+    fig.add_trace(go.Scatter(name='High',
+                             x=values_for_interp,
+                             y=confidence_95percent,
+                             mode='lines',
+                             marker=dict(color="#444"),
+                             line=dict(width=0),
+                             showlegend=False
+                             )
+                  )
+
+    fig.add_trace(go.Scatter(name='Low',
+                             x=values_for_interp,
+                             y=confidence_5percent,
+                             marker=dict(color="#444"),
+                             line=dict(width=0),
+                             mode='lines',
+                             fillcolor='rgba(68, 68, 68, 0.3)',
+                             fill='tonexty',
+                             showlegend=False
+                             )
+                  )
+
+    fig_title = f"T_{'pred' if use_pred_data else 'real'}{'(+'+ str(logger_temp_time_offset) +'ms)' if logger_temp_time_offset > 0 else ''} = f(E*Z)"
+    fig.update_layout(xaxis_title="E*Z",
+                      yaxis_title='Temp[°C]',
+                      title=fig_title,
+                      hovermode="x"
+                      )
+
+    fig.show()
