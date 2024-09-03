@@ -545,7 +545,7 @@ class PlotLogic:
         if self.generator_log:
             generator_time = time_value / self.record.generator_log_interval_ms - self.record.generator_log_start_time_ms
 
-        self.cursor_line.set_xdata(temperature_time_rounded)
+        self.cursor_line.set_xdata([temperature_time_rounded])
 
         annotation_text = ""
         global plot_data

@@ -105,14 +105,14 @@ if __name__ == '__main__':
                 temp_values_interp = np.interp(values_for_interp,
                                                ez_values[:-end_values_to_skip],
                                                temp_values_gen[:-end_values_to_skip],
-                                               left=np.NaN,
-                                               right=np.NaN)
+                                               left=np.nan,
+                                               right=np.nan)
             else:
                 temp_values_interp = np.interp(values_for_interp,
                                                ez_values,
                                                temp_values_gen,
-                                               left=np.NaN,
-                                               right=np.NaN)
+                                               left=np.nan,
+                                               right=np.nan)
 
             temp_values_interp_all.append(temp_values_interp)
 
