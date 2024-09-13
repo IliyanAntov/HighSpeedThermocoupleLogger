@@ -318,10 +318,10 @@ class MainWindowLogic:
         self.ui.GeneratorComPortRefreshButton.clicked.connect(self.set_available_comports_gen)
         self.ui.GeneratorOutputList.model().rowsInserted.connect(lambda: self.ui.GeneratorOutputList.scrollToBottom())
         self.ui.GeneratorOutputList.setWordWrap(True)
-        # self.ui.GeneratorSendCommandButton.setShortcut("Return")
-        for sequence in ("Enter", "Return",):
-            shortcut = QtWidgets.QShortcut(sequence, self.ui.GeneratorSendCommandButton)
-            shortcut.activated.connect(self.ui.GeneratorSendCommandButton.click)
+        self.ui.GeneratorSendCommandButton.setShortcut("S")
+        # for sequence in ("Enter", "Return",):
+        #     shortcut = QtWidgets.QShortcut(sequence, self.ui.GeneratorSendCommandButton)
+        #     shortcut.activated.connect(self.ui.GeneratorSendCommandButton.click)
         self.ui.MeasureButton.setShortcut("M")
         self.ui.DeleteRecordButton.setShortcut("D")
         self.ui.RenameRecordButton.setShortcut("R")
