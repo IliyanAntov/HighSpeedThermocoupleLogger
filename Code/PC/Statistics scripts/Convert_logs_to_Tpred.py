@@ -14,8 +14,9 @@ import jsonpickle as jsonpickle
 
 # log_folders = ["../logs/test_logs"]
 log_folders = [
-    # "../logs/04_Second tests with impedance data/Proper",
+    "../logs/04_Second tests with impedance data/Proper",
     "../logs/10_Large_sample_sizes/Bobi",
+    "../logs/10_Large_sample_sizes/Bobi 2",
     "../logs/10_Large_sample_sizes/Iliyan"
 ]
 tpred_log_folder = "./Tpred_logs"
@@ -51,7 +52,7 @@ def calculate_predicted_data_point(x_data, channel_parameters, y_data):
                                             tau_ms=channel_parameters.prediction_time_constant_ms,
                                             t_0=t_0)
     param, param_cov = curve_fit(heating_function_fixed_params, x_data, y_data)
-    return param[0]
+    return float(param[0])
 
 
 def apply_low_pass_filter(data, order, corner_frequency_khz, cutoff_freq_khz):
@@ -65,8 +66,8 @@ if __name__ == '__main__':
     interp_plot_list = []
     for log_folder in log_folders:
         log_names = os.listdir(log_folder)
-        for log_name in log_names:
-            print(f"Converting log {log_name}...")
+        for index, log_name in enumerate(log_names, start=1):
+            print(f"Converting log {log_name}... ({index}/{len(log_names)})")
             with open(log_folder + "/" + log_name) as log_file:
                 file_raw = log_file.read()
                 file_raw = file_raw.replace("MeasurementData.", "PC.MeasurementData.")

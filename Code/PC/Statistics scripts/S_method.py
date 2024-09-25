@@ -11,10 +11,16 @@ from PC.MeasurementData.LogData import Record, Channel
 import PC.MeasurementData.Parameters as Parameters
 import jsonpickle as jsonpickle
 
-show_all_traces = True
+show_all_traces = False
 use_pred_data = True
 # log_folders = ["../logs/test_logs"]
-log_folders = ["../logs/04_Second tests with impedance data/Proper"]
+# log_folders = ["../logs/04_Second tests with impedance data/Proper"]
+log_folders = [
+    "../logs/04_Second tests with impedance data/Proper",
+    "../logs/10_Large_sample_sizes/Bobi",
+    "../logs/10_Large_sample_sizes/Bobi 2",
+    "../logs/10_Large_sample_sizes/Iliyan"
+]
 tpred_log_folder = "./Tpred_logs"
 logger_temp_time_offset = 0
 dt_ms = 10

@@ -2,6 +2,7 @@ import math
 import os
 import statistics
 import warnings
+import random
 
 import jsonpickle as jsonpickle
 import seaborn as sns
@@ -13,6 +14,8 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import warnings
 
+from matplotlib import pyplot
+from pandas.plotting import autocorrelation_plot
 from scipy.stats import linregress
 from sklearn.model_selection import train_test_split, LeaveOneGroupOut, GroupKFold, GridSearchCV
 from sklearn.metrics import mean_squared_error, root_mean_squared_error
@@ -41,7 +44,7 @@ use_pred_data = False
 tpred_log_folder = "./Tpred_logs"
 
 log_folders = [
-    # "../logs/04_Second tests with impedance data/Proper",
+    "../logs/04_Second tests with impedance data/Proper",
     "../logs/10_Large_sample_sizes/Bobi",
     "../logs/10_Large_sample_sizes/Bobi 2",
     "../logs/10_Large_sample_sizes/Iliyan"
@@ -53,8 +56,9 @@ target_parameter = "Temp"
 training_columns_to_drop = [
                             target_parameter,
                             "dTemp",
-                            "measurement_name",
-                            "t",
+                            "measurement_id",
+                            # "measurement_name",
+                            "t"
                             ]
 
 
@@ -67,7 +71,7 @@ validation_records = [
     # "2024-09-04_15-50-41",
     "2024-09-04_16-03-29"
 ]
-
+#
 # validation_records = [
 #     "2024-09-04_16-00-11",  # Iliyan
 #     "2024-09-04_16-03-33",
@@ -102,7 +106,7 @@ def custom_loss_function(alpha=10.0, beta=1.0, p=6):
     def _custom_loss(y_pred, dtrain):
         y_true = dtrain.get_label()  # Extract true labels from DMatrix
         residual = y_true - y_pred
-        residual = np.where(y_true < 110, residual * 20, residual)
+        residual = np.where(y_true < 110, residual * 25.0, residual)
         # print(residual)
 
         # Gradient: the first derivative of the loss function
@@ -129,24 +133,27 @@ def train_model(df):
         X_validation = df_validation.drop(columns=training_columns_to_drop)
         y_validation = df_validation[target_parameter]
 
-        dtrain_reg = xgb.DMatrix(X_training, y_training)
-        dvalid_reg = xgb.DMatrix(X_validation, y_validation)
+        dtrain_reg = xgb.DMatrix(X_training, y_training, enable_categorical=True)
+        dvalid_reg = xgb.DMatrix(X_validation, y_validation, enable_categorical=True)
 
         num_features = df_training.shape[1]
         weights = np.ones(num_features)
         dtrain_reg.set_info(feature_weights=weights)
 
         parameters = {
-                      # "objective": "reg:squarederror",
-                      # "objective": "reg:quantileerror",
-                      # "quantile_alpha": 0.7,
+                      # "objective": "reg:squaredlogerror",
+                      "objective": "reg:quantileerror",
+                      "quantile_alpha": 0.9,
                       "eval_metric": "rmse",
                       "device": "cuda",
-                      'learning_rate': 0.01,
-                      'max_depth': 4,
-                      "gamma": 10,
-                      'min_child_weight': 15,
-                      'colsample_bytree': 0.25,
+                      'learning_rate': 0.04,
+                      'max_depth': 3,
+                      # "gamma": 200,
+                      # 'min_child_weight': 100,
+                      'subsample': 0.5,
+                      'colsample_bytree': 0.5,
+                      'colsample_bylevel': 0.2,
+                      'colsample_bynode': 0.2,
                       'seed': 80085,
                       }
 
@@ -156,10 +163,10 @@ def train_model(df):
             params=parameters,
             dtrain=dtrain_reg,
             early_stopping_rounds=500,
-            num_boost_round=10000,
+            num_boost_round=20000,
             verbose_eval=100,
             evals=evals,
-            obj=custom_loss_function()
+            # obj=custom_loss_function()
         )
 
         model.save_model(model_path)
@@ -180,7 +187,7 @@ def plot_validation_results(df, model, records_list):
         X_validation = df_validation.drop(columns=training_columns_to_drop)
         y_validation = df_validation["Temp"]
 
-        dvalid_reg = xgb.DMatrix(X_validation, y_validation)
+        dvalid_reg = xgb.DMatrix(X_validation, y_validation, enable_categorical=True)
         y_pred_validation = model.predict(dvalid_reg, iteration_range=(0, model.best_iteration + 1))
 
         if target_parameter == "dTemp":
@@ -189,9 +196,11 @@ def plot_validation_results(df, model, records_list):
         else:
             y_pred_temp = y_pred_validation
 
-        rmse_validation = root_mean_squared_error(y_validation, y_pred_temp)
+        y_pred_temp = y_pred_temp
+        y_real_temp = df_validation.Temp
+        rmse_validation = root_mean_squared_error(y_real_temp, y_pred_temp)
         print(f"Validation RMSE: {rmse_validation}")
-        plt.scatter(df_validation["t"], df_validation["Temp"], color="tab:blue", s=10)
+        plt.scatter(df_validation["t"], y_real_temp, color="tab:blue", s=10)
         plt.scatter(df_validation["t"], y_pred_temp, color="tab:orange", s=10)
         plt.ylim(20, 130)
         plt.show()
@@ -275,12 +284,12 @@ if __name__ == '__main__':
                     current_average_list = []
 
                 df_current = pd.DataFrame.from_dict(record.generator_raw_data)
-                df_current["t"] = time_values_gen
-                df_current.insert(0, "Temp", temp_values_gen)
-                df_current.insert(1, "dTemp", df_current["Temp"].diff())
+                df_current.insert(0, "t", time_values_gen)
+                df_current["Temp"] = temp_values_gen
+                df_current["dTemp"] = df_current["Temp"].diff()
                 df_current["dTemp"] = df_current["dTemp"].fillna(0)
-                df_current["measurement_name"] = log_name.replace(".json", "")
-                df_current.insert(0, "measurement_id", current_measurement_id)
+                df_current.insert(0, "measurement_name", log_name.replace(".json", ""))
+                df_current.insert(1, "measurement_id", current_measurement_id)
                 current_measurement_id += 1
 
                 # NOTE: Calculate Energy values
@@ -316,4 +325,5 @@ if __name__ == '__main__':
     print(df_full.head().to_string())
 
     # NOTE: ML algorithm
+    df_full["measurement_name"] = df_full.measurement_name.astype('category')
     train_model(df_full)
