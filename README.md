@@ -1,4 +1,6 @@
-# Високоскоростен логер за термодвойки с ускорение на измерването<br/>High-speed thermocouple logger with measurement acceleration
+ <h1 align="center"> Високоскоростен логер за термодвойки с ускорение на измерването<br/><br/>
+ High-speed thermocouple logger with measurement acceleration </h1>
+
 
 ## [Документация](./Documentation/DR_Iliyan_Antov_101220020.pdf)
 
